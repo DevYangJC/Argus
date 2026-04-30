@@ -1,0 +1,20 @@
+project:
+  name: Argus-backend
+  version: 1.0.0
+
+server:
+  port: 10001
+
+spring:
+  application:
+    name: argus-service
+  datasource:
+    url: jdbc:postgresql://192.168.200.130:5433/dd_rag
+    username: root
+    password: 123456
+    driver-class-name: org.postgresql.Driver
+
+ddrag:
+  auth:
+    jwt-secret: local-dev-32byte-secret-key-minimum!!
+    refresh-cookie-secure: false

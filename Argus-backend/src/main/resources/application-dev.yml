@@ -1,0 +1,19 @@
+project:
+  name: Argus-backend
+  version: 1.0.0
+
+server:
+  port: 10008
+
+spring:
+  application:
+    name: argus-service
+  datasource:
+    url: jdbc:postgresql://10.10.14.14:5432/ivs?currentSchema=public
+    username: tacncov
+    password: bA3-gC1aA
+    driver-class-name: org.postgresql.Driver
+
+ddrag:
+  auth:
+    jwt-secret: server-dev-32byte-secret-key-minimum

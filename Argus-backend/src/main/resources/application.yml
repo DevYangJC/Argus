@@ -1,0 +1,16 @@
+spring:
+  profiles:
+    active: local
+
+# MyBatis-Plus 配置
+mybatis-plus:
+  mapper-locations: classpath*:/mappers/**/*.xml
+  type-aliases-package: com.argus.rag
+  configuration:
+    map-underscore-to-camel-case: true
+    default-enum-type-handler: org.apache.ibatis.type.EnumTypeHandler
+
+# Auth / JWT 配置
+ddrag:
+  auth:
+    jwt-secret: changeme-change-me-in-production-change-me-now

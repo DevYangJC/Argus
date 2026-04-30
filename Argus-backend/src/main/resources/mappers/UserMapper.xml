@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.argus.rag.user.mapper.UserMapper">
+
+    <!-- 登录时根据用户名或邮箱查找用户，加行锁 -->
+    <select id="selectByLoginIdForUpdate" resultType="com.argus.rag.user.model.entity.User">
+        select id, user_code, username, email, display_name, password_hash,
+               system_role, status, must_change_password
+        from users
+        where username = #{loginId} or email = #{loginId}
+        order by id
+        for update
+    </select>
+
+    <!-- 根据用户名和邮箱查找用户，加行锁 -->
+    <select id="selectByUsernameAndEmailForUpdate" resultType="com.argus.rag.user.model.entity.User">
+        select id, user_code, username, email, display_name, password_hash,
+               system_role, status, must_change_password
+        from users
+        where username = #{username} and email = #{email}
+        order by id
+        for update
+    </select>
+
+</mapper>
