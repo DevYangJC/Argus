@@ -1,6 +1,7 @@
 package com.argus.rag.auth;
 
 import com.argus.rag.auth.security.JwtAuthenticationFilter;
+import com.argus.rag.auth.security.UserContext;
 import com.argus.rag.common.enums.SystemRole;
 import com.argus.rag.common.enums.UserStatus;
 import com.argus.rag.common.exception.BusinessException;
@@ -8,13 +9,12 @@ import com.argus.rag.common.exception.ForbiddenException;
 import com.argus.rag.common.exception.UnauthorizedException;
 import com.argus.rag.user.mapper.UserMapper;
 import com.argus.rag.user.model.entity.User;
-import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Service;
 
 /**
- * 当前用户服务，从 request attribute 中提取已认证用户信息。
+ * 当前用户服务，通过 {@link UserContext} 获取当前请求用户。
  * <p>
- * 依赖 {@link JwtAuthenticationFilter} 预先解析 JWT 并设置 attribute。
+ * 依赖 {@link JwtAuthenticationFilter} 在请求进入时设置 {@link UserContext}。
  */
 @Service
 public class CurrentUserService {
@@ -26,8 +26,8 @@ public class CurrentUserService {
     }
 
     /** 获取当前登录用户，未登录抛出 401 */
-    public CurrentUser getRequiredCurrentUser(HttpServletRequest request) {
-        JwtAuthenticationFilter.AuthenticatedUser authenticatedUser = extractAuthenticatedUser(request);
+    public CurrentUser getRequiredCurrentUser() {
+        JwtAuthenticationFilter.AuthenticatedUser authenticatedUser = UserContext.get();
         if (authenticatedUser != null) {
             return loadUserById(authenticatedUser.userId());
         }
@@ -35,8 +35,8 @@ public class CurrentUserService {
     }
 
     /** 要求当前用户为系统管理员，否则抛出 403 */
-    public CurrentUser requireSystemAdmin(HttpServletRequest request) {
-        CurrentUser currentUser = getRequiredCurrentUser(request);
+    public CurrentUser requireSystemAdmin() {
+        CurrentUser currentUser = getRequiredCurrentUser();
         if (currentUser.systemRole() != SystemRole.ADMIN) {
             throw new ForbiddenException("当前用户不是系统管理员");
         }
@@ -44,20 +44,12 @@ public class CurrentUserService {
     }
 
     /** 要求当前用户为业务用户（非管理员），否则抛出 403 */
-    public CurrentUser requireBusinessUser(HttpServletRequest request) {
-        CurrentUser currentUser = getRequiredCurrentUser(request);
+    public CurrentUser requireBusinessUser() {
+        CurrentUser currentUser = getRequiredCurrentUser();
         if (currentUser.systemRole() == SystemRole.ADMIN) {
             throw new ForbiddenException("系统管理员不能访问普通业务区");
         }
         return currentUser;
-    }
-
-    private JwtAuthenticationFilter.AuthenticatedUser extractAuthenticatedUser(HttpServletRequest request) {
-        Object attribute = request.getAttribute(JwtAuthenticationFilter.AUTHENTICATED_USER_REQUEST_ATTRIBUTE);
-        if (attribute instanceof JwtAuthenticationFilter.AuthenticatedUser authenticatedUser) {
-            return authenticatedUser;
-        }
-        return null;
     }
 
     /** 从数据库加载用户并校验状态 */

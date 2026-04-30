@@ -93,8 +93,8 @@ public class AuthController {
 
     /** 获取当前登录用户信息 */
     @GetMapping("/me")
-    public ApiResponse<CurrentUserProfileResponse> currentUser(HttpServletRequest request) {
-        return ApiResponse.success(CurrentUserProfileResponse.from(currentUserService.getRequiredCurrentUser(request)));
+    public ApiResponse<CurrentUserProfileResponse> currentUser() {
+        return ApiResponse.success(CurrentUserProfileResponse.from(currentUserService.getRequiredCurrentUser()));
     }
 
     private String extractRefreshToken(HttpServletRequest request) {

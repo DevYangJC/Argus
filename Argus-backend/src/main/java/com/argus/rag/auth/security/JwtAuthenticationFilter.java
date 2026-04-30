@@ -27,9 +27,6 @@ import java.io.IOException;
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-    /** 认证通过的用户信息在此 attribute 中 */
-    public static final String AUTHENTICATED_USER_REQUEST_ATTRIBUTE =
-            JwtAuthenticationFilter.class.getName() + ".AUTHENTICATED_USER";
     private static final String BEARER_PREFIX = "Bearer ";
     /** 无需认证的路径 */
     private static final String LOGIN_PATH = "/api/auth/login";
@@ -55,31 +52,37 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             FilterChain filterChain
     ) throws ServletException, IOException {
         String authorization = request.getHeader(HttpHeaders.AUTHORIZATION);
-        if (authorization == null || !authorization.startsWith(BEARER_PREFIX)) {
+        if (authorization == null) {
+            log.debug("请求无 Authorization header: path={}", request.getRequestURI());
             filterChain.doFilter(request, response);
             return;
         }
-        String accessToken = authorization.substring(BEARER_PREFIX.length()).trim();
+        String accessToken;
+        if (authorization.startsWith(BEARER_PREFIX)) {
+            accessToken = authorization.substring(BEARER_PREFIX.length()).trim();
+        } else {
+            accessToken = authorization.trim();
+        }
         if (accessToken.isEmpty()) {
             writeUnauthorized(response, "access token 非法或已过期");
             return;
         }
         try {
             JwtAccessTokenService.AccessTokenClaims claims = jwtAccessTokenService.parse(accessToken);
-            request.setAttribute(
-                    AUTHENTICATED_USER_REQUEST_ATTRIBUTE,
-                    new AuthenticatedUser(
-                            claims.userId(),
-                            claims.userCode(),
-                            claims.displayName(),
-                            claims.systemRole(),
-                            claims.mustChangePassword()
-                    )
-            );
+            log.debug("JWT 认证成功: userId={}, path={}", claims.userId(), request.getRequestURI());
+            UserContext.set(new AuthenticatedUser(
+                    claims.userId(),
+                    claims.userCode(),
+                    claims.displayName(),
+                    claims.systemRole(),
+                    claims.mustChangePassword()
+            ));
             filterChain.doFilter(request, response);
         } catch (BusinessException exception) {
             log.debug("JWT 认证失败: {} path={}", exception.getMessage(), request.getRequestURI());
             writeUnauthorized(response, exception.getMessage());
+        } finally {
+            UserContext.clear();
         }
     }
 
