@@ -12,14 +12,5 @@
         for update
     </select>
 
-    <!-- 根据用户名和邮箱查找用户，加行锁 -->
-    <select id="selectByUsernameAndEmailForUpdate" resultType="com.argus.rag.user.model.entity.User">
-        select id, user_code, username, email, display_name, password_hash,
-               system_role, status, must_change_password
-        from users
-        where username = #{username} and email = #{email}
-        order by id
-        for update
-    </select>
 
 </mapper>

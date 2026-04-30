@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- 日志输出目录 -->
+    <property name="LOG_PATH" value="./logs"/>
+    <property name="LOG_FILE" value="${LOG_PATH}/argus"/>
+    <property name="LOG_ERROR_FILE" value="${LOG_PATH}/argus-error"/>
+
+    <!-- 控制台输出，本地环境带颜色 -->
+    <springProfile name="local">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+                <pattern>%green(%d{HH:mm:ss.SSS}) %highlight(%-5level) [%thread] %cyan(%logger{36}) - %msg%n</pattern>
+            </encoder>
+        </appender>
+    </springProfile>
+
+    <!-- 控制台输出，非本地环境不带颜色 -->
+    <springProfile name="!local">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+                <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+            </encoder>
+        </appender>
+    </springProfile>
+
+    <!-- 全部日志滚动文件 -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_FILE}.log</file>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_FILE}.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <maxFileSize>50MB</maxFileSize>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>2GB</totalSizeCap>
+        </rollingPolicy>
+    </appender>
+
+    <!-- 错误日志单独输出 -->
+    <appender name="ERROR_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_ERROR_FILE}.log</file>
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>WARN</level>
+        </filter>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_ERROR_FILE}.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <maxFileSize>50MB</maxFileSize>
+            <maxHistory>60</maxHistory>
+            <totalSizeCap>1GB</totalSizeCap>
+        </rollingPolicy>
+    </appender>
+
+    <!-- 项目包日志级别 -->
+    <logger name="com.argus.rag" level="DEBUG"/>
+
+    <!-- 第三方日志级别 -->
+    <logger name="com.baomidou.mybatisplus" level="WARN"/>
+    <logger name="org.mybatis" level="WARN"/>
+    <logger name="org.springframework" level="WARN"/>
+    <logger name="com.zaxxer.hikari" level="INFO"/>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+        <appender-ref ref="ERROR_FILE"/>
+    </root>
+</configuration>

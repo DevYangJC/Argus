@@ -10,6 +10,7 @@ import com.argus.rag.auth.security.AuthCookieSupport;
 import com.argus.rag.auth.service.AuthService;
 import com.argus.rag.auth.service.AuthService.AuthTokens;
 import com.argus.rag.common.api.ApiResponse;
+import com.argus.rag.common.log.OperationLog;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -27,6 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/auth")
+
 public class AuthController {
 
     private final AuthService authService;
@@ -48,17 +50,19 @@ public class AuthController {
 
     /** 登录：返回 access token，同时通过 Cookie 下发 refresh token */
     @PostMapping("/login")
+    @OperationLog
     public ApiResponse<AuthTokensResponse> login(
             @Valid @RequestBody LoginRequest request,
             HttpServletResponse response
     ) {
         AuthTokens tokens = authService.login(request.loginId(), request.password());
         authCookieSupport.writeRefreshTokenCookie(response, tokens.refreshToken());
-        return ApiResponse.success(AuthTokensResponse.from(tokens, authService.getCurrentUser(tokens.userId())));
+        return ApiResponse.success(AuthTokensResponse.from(tokens));
     }
 
     /** 注册新用户 */
     @PostMapping("/register")
+    @OperationLog
     public ApiResponse<Void> register(@Valid @RequestBody RegisterRequest request) {
         authService.register(request);
         return ApiResponse.success(null);
@@ -73,7 +77,7 @@ public class AuthController {
         String refreshToken = extractRefreshToken(request);
         AuthTokens tokens = authService.refresh(refreshToken);
         authCookieSupport.writeRefreshTokenCookie(response, tokens.refreshToken());
-        return ApiResponse.success(AuthTokensResponse.from(tokens, authService.getCurrentUser(tokens.userId())));
+        return ApiResponse.success(AuthTokensResponse.from(tokens));
     }
 
     /** 登出：吊销 refresh token 并清除 Cookie */

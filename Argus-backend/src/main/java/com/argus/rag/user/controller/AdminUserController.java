@@ -2,6 +2,7 @@ package com.argus.rag.user.controller;
 
 import com.argus.rag.common.api.ApiResponse;
 import com.argus.rag.auth.CurrentUserService;
+import com.argus.rag.common.log.OperationLog;
 import com.argus.rag.user.model.dto.UpdateUserStatusRequest;
 import com.argus.rag.user.model.vo.AdminUserItemResponse;
 import com.argus.rag.user.service.AdminUserService;
@@ -21,6 +22,7 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/api/admin/users")
+@OperationLog
 public class AdminUserController {
 
     private final CurrentUserService currentUserService;

@@ -6,8 +6,7 @@ import com.argus.rag.common.enums.UserStatus;
 import com.argus.rag.user.mapper.UserMapper;
 import com.argus.rag.user.model.entity.User;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -20,11 +19,10 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>
  * 通过 {@code ddrag.dev-admin.*} 配置项自定义账号信息。
  */
+@Slf4j
 @Component
 @Profile("dev")
 public class DevAdminInitializer implements ApplicationRunner {
-
-    private static final Logger log = LoggerFactory.getLogger(DevAdminInitializer.class);
 
     private final UserMapper userMapper;
     private final PasswordHasher passwordHasher;

@@ -7,6 +7,7 @@ import com.argus.rag.user.mapper.UserMapper;
 import com.argus.rag.user.model.dto.UpdateUserStatusRequest;
 import com.argus.rag.user.model.entity.User;
 import com.argus.rag.user.model.vo.AdminUserItemResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,6 +16,7 @@ import java.util.List;
 /**
  * 管理员用户管理服务。
  */
+@Slf4j
 @Service
 public class AdminUserService {
 
@@ -54,6 +56,7 @@ public class AdminUserService {
         if (request.status() == UserStatus.DISABLED) {
             refreshTokenService.revokeActiveTokens(userId);
         }
+        log.info("管理员修改用户状态: userId={}, status={}", userId, request.status());
     }
 
     private Long requireUserId(Long userId) {

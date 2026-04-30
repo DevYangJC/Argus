@@ -10,6 +10,8 @@ import com.argus.rag.common.exception.BusinessException;
 import com.argus.rag.user.mapper.UserMapper;
 import com.argus.rag.user.model.entity.User;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,16 +27,15 @@ import java.util.regex.Pattern;
 /**
  * 认证服务，处理登录、注册、令牌刷新、登出等核心逻辑。
  */
+@Slf4j
 @Service
 public class AuthService {
 
     private static final String INVALID_CREDENTIALS_MESSAGE = "账号或密码错误";
-    private static final String INVALID_PASSWORD_MESSAGE = "新密码必须至少 8 位，且同时包含字母和数字";
     private static final int MAX_LOGIN_ID_LENGTH = 128;
     private static final int MAX_USERNAME_LENGTH = 64;
     private static final int MAX_EMAIL_LENGTH = 128;
     private static final int MAX_DISPLAY_NAME_LENGTH = 128;
-    private static final int MIN_PASSWORD_LENGTH = 8;
     private static final int MAX_PASSWORD_LENGTH = 256;
     /** BCrypt 最大输入字节数，超出会截断 */
     private static final int BCRYPT_MAX_PASSWORD_BYTES = 72;
@@ -45,6 +46,7 @@ public class AuthService {
 
     private final UserMapper userMapper;
     private final PasswordHasher passwordHasher;
+    private final PasswordPolicyValidator passwordValidator;
     private final JwtAccessTokenService jwtAccessTokenService;
     private final RefreshTokenService refreshTokenService;
     private final Clock clock;
@@ -52,12 +54,14 @@ public class AuthService {
     public AuthService(
             UserMapper userMapper,
             PasswordHasher passwordHasher,
+            PasswordPolicyValidator passwordValidator,
             JwtAccessTokenService jwtAccessTokenService,
             RefreshTokenService refreshTokenService,
             Clock clock
     ) {
         this.userMapper = userMapper;
         this.passwordHasher = passwordHasher;
+        this.passwordValidator = passwordValidator;
         this.jwtAccessTokenService = jwtAccessTokenService;
         this.refreshTokenService = refreshTokenService;
         this.clock = clock;
@@ -74,11 +78,13 @@ public class AuthService {
         refreshTokenService.revokeActiveTokens(user.getId());
         RefreshTokenService.IssuedRefreshToken refreshToken = refreshTokenService.issueToken(user.getId());
         updateSuccessfulLogin(user.getId());
+        log.info("用户登录成功: userId={}, username={}", user.getId(), user.getUsername());
         return new AuthTokens(
                 user.getId(),
                 issueAccessToken(user),
                 refreshToken.refreshToken(),
-                Boolean.TRUE.equals(user.getMustChangePassword())
+                Boolean.TRUE.equals(user.getMustChangePassword()),
+                toCurrentUser(user)
         );
     }
 
@@ -99,29 +105,11 @@ public class AuthService {
         user.setStatus(UserStatus.ACTIVE);
         user.setMustChangePassword(false);
         userMapper.insert(user);
+        log.info("用户注册成功: username={}, email={}", user.getUsername(), user.getEmail());
     }
 
     /**
-     * 根据用户名和邮箱重置密码（忘记密码场景）。
-     */
-    @Transactional
-    public void resetPasswordByIdentity(String username, String email, String newPassword) {
-        String normalizedUsername = normalizeUsername(username);
-        String normalizedEmail = normalizeRequiredValue(email, "邮箱不能为空", "邮箱长度不能超过 128", MAX_EMAIL_LENGTH);
-        validateRegisterPassword(newPassword);
-        List<User> users = userMapper.selectByUsernameAndEmailForUpdate(normalizedUsername, normalizedEmail);
-        if (users.size() != 1) {
-            throw new BusinessException("账号信息不匹配");
-        }
-        User user = users.getFirst();
-        user.setPasswordHash(passwordHasher.hash(newPassword));
-        user.setMustChangePassword(false);
-        userMapper.updateById(user);
-        refreshTokenService.revokeActiveTokens(user.getId());
-    }
-
-    /**
-     * 刷新令牌：验证 refresh token，吊销旧的，签发新的。
+     * 刷新令牌：验证 refresh token，原子吊销旧的，签发新的。
      */
     @Transactional
     public AuthTokens refresh(String refreshToken) {
@@ -135,13 +123,19 @@ public class AuthService {
             throw new BusinessException("用户不存在");
         }
         ensureRefreshAllowed(user);
-        refreshTokenService.revokeToken(refreshToken);
+        if (!refreshTokenService.revokeTokenById(activeToken.id())) {
+            refreshTokenService.revokeActiveTokens(user.getId());
+            log.warn("refresh token 重放攻击: userId={}", user.getId());
+            throw new BusinessException("refresh token 已被使用，请重新登录");
+        }
         RefreshTokenService.IssuedRefreshToken nextRefreshToken = refreshTokenService.issueToken(user.getId());
+        log.info("令牌刷新成功: userId={}", user.getId());
         return new AuthTokens(
                 user.getId(),
                 issueAccessToken(user),
                 nextRefreshToken.refreshToken(),
-                Boolean.TRUE.equals(user.getMustChangePassword())
+                Boolean.TRUE.equals(user.getMustChangePassword()),
+                toCurrentUser(user)
         );
     }
 
@@ -153,15 +147,14 @@ public class AuthService {
         if (refreshToken == null || refreshToken.isBlank()) {
             return;
         }
-        refreshTokenService.revokeToken(refreshToken);
+        boolean revoked = refreshTokenService.revokeToken(refreshToken);
+        if (revoked) {
+            log.info("用户登出成功");
+        }
     }
 
-    /** 根据用户 ID 构造 CurrentUser，供其他模块使用 */
-    public CurrentUserService.CurrentUser getCurrentUser(Long userId) {
-        User user = userMapper.selectById(userId);
-        if (user == null) {
-            throw new BusinessException("用户不存在");
-        }
+    /** 将 User 实体转换为 CurrentUser，避免重复查库 */
+    private CurrentUserService.CurrentUser toCurrentUser(User user) {
         return new CurrentUserService.CurrentUser(
                 user.getId(),
                 user.getUserCode(),
@@ -184,7 +177,7 @@ public class AuthService {
                 "显示名称长度不能超过 128",
                 MAX_DISPLAY_NAME_LENGTH
         );
-        validateRegisterPassword(request.password());
+        passwordValidator.validate(request.password());
         return new RegisterCommand(username, email, displayName, request.password());
     }
 
@@ -213,33 +206,6 @@ public class AuthService {
             throw new BusinessException("登录标识长度非法");
         }
         return normalizedLoginId;
-    }
-
-    /** 密码复杂度校验：至少 8 位，包含字母和数字 */
-    private void validateRegisterPassword(String password) {
-        if (password == null || password.length() < MIN_PASSWORD_LENGTH) {
-            throw new BusinessException(INVALID_PASSWORD_MESSAGE);
-        }
-        if (password.length() > MAX_PASSWORD_LENGTH) {
-            throw new BusinessException("密码长度非法");
-        }
-        if (password.getBytes(StandardCharsets.UTF_8).length > BCRYPT_MAX_PASSWORD_BYTES) {
-            throw new BusinessException("密码长度超过安全上限，请控制在 72 字节以内");
-        }
-        boolean hasLetter = false;
-        boolean hasDigit = false;
-        for (int i = 0; i < password.length(); i++) {
-            char current = password.charAt(i);
-            if (Character.isLetter(current)) {
-                hasLetter = true;
-            }
-            if (Character.isDigit(current)) {
-                hasDigit = true;
-            }
-        }
-        if (!hasLetter || !hasDigit) {
-            throw new BusinessException(INVALID_PASSWORD_MESSAGE);
-        }
     }
 
     /** 用户名归一化并校验 */
@@ -314,12 +280,12 @@ public class AuthService {
         }
     }
 
-    /** 登录成功后更新最后登录时间 */
+    /** 登录成功后更新最后登录时间，使用 LambdaUpdateWrapper 精确更新单个字段 */
     private void updateSuccessfulLogin(Long userId) {
-        User user = new User();
-        user.setId(userId);
-        user.setLastLoginAt(LocalDateTime.now(clock));
-        userMapper.updateById(user);
+        LambdaUpdateWrapper<User> updateWrapper = new LambdaUpdateWrapper<>();
+        updateWrapper.eq(User::getId, userId)
+                      .set(User::getLastLoginAt, LocalDateTime.now(clock));
+        userMapper.update(null, updateWrapper);
     }
 
     /** 签发 access token（JWT） */
@@ -335,12 +301,13 @@ public class AuthService {
         );
     }
 
-    /** 登录/刷新后的令牌集合 */
+    /** 登录/刷新后的令牌集合，包含当前用户信息避免调用方重复查库 */
     public record AuthTokens(
             Long userId,
             String accessToken,
             String refreshToken,
-            boolean mustChangePassword
+            boolean mustChangePassword,
+            CurrentUserService.CurrentUser currentUser
     ) {
     }
 

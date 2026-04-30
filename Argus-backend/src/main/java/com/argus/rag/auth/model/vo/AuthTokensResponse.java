@@ -1,6 +1,5 @@
 package com.argus.rag.auth.model.vo;
 
-import com.argus.rag.auth.CurrentUserService;
 import com.argus.rag.auth.service.AuthService.AuthTokens;
 
 /**
@@ -13,7 +12,7 @@ public record AuthTokensResponse(
         CurrentUserProfileResponse currentUser
 ) {
 
-    public static AuthTokensResponse from(AuthTokens tokens, CurrentUserService.CurrentUser currentUser) {
-        return new AuthTokensResponse(tokens.accessToken(), CurrentUserProfileResponse.from(currentUser));
+    public static AuthTokensResponse from(AuthTokens tokens) {
+        return new AuthTokensResponse(tokens.accessToken(), CurrentUserProfileResponse.from(tokens.currentUser()));
     }
 }

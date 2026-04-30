@@ -8,6 +8,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -22,6 +23,7 @@ import java.io.IOException;
  * 从 Authorization 头提取 Bearer token，解析后设置 request attribute 供后续控制器使用。
  * 对 /api/auth/* 路径跳过过滤。
  */
+@Slf4j
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
@@ -32,7 +34,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     /** 无需认证的路径 */
     private static final String LOGIN_PATH = "/api/auth/login";
     private static final String REGISTER_PATH = "/api/auth/register";
-    private static final String RESET_PASSWORD_PATH = "/api/auth/reset-password";
     private static final String REFRESH_PATH = "/api/auth/refresh";
     private static final String LOGOUT_PATH = "/api/auth/logout";
 
@@ -77,6 +78,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             );
             filterChain.doFilter(request, response);
         } catch (BusinessException exception) {
+            log.debug("JWT 认证失败: {} path={}", exception.getMessage(), request.getRequestURI());
             writeUnauthorized(response, exception.getMessage());
         }
     }
@@ -87,7 +89,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String requestUri = request.getRequestURI();
         return LOGIN_PATH.equals(requestUri)
                 || REGISTER_PATH.equals(requestUri)
-                || RESET_PASSWORD_PATH.equals(requestUri)
                 || REFRESH_PATH.equals(requestUri)
                 || LOGOUT_PATH.equals(requestUri);
     }

@@ -100,27 +100,22 @@ public class RefreshTokenService {
         );
     }
 
-    /** 吊销单条 token（登出时调用） */
-    public void revokeToken(String refreshToken) {
+    /** 原子吊销单条 token（登出时调用），返回 true 表示成功吊销 */
+    public boolean revokeToken(String refreshToken) {
         Optional<RefreshTokenRecord> activeToken = findActiveToken(refreshToken);
         if (activeToken.isEmpty()) {
-            return;
+            return false;
         }
-        UserRefreshToken update = new UserRefreshToken();
-        update.setId(activeToken.get().id());
-        update.setRevokedAt(LocalDateTime.now(clock));
-        tokenMapper.updateById(update);
+        return revokeTokenById(activeToken.get().id());
     }
 
-    /** 统计用户的有效 token 数量 */
-    public long countActiveTokens(Long userId) {
+    /**
+     * 原子吊销指定 ID 的 token：仅当 revoked_at 仍为 null 时才更新。
+     * 返回 true 表示成功吊销，false 表示已被其他请求抢先吊销（疑似 token 窃取）。
+     */
+    public boolean revokeTokenById(Long id) {
         LocalDateTime now = LocalDateTime.now(clock);
-        return tokenMapper.selectCount(
-                new LambdaQueryWrapper<UserRefreshToken>()
-                        .eq(UserRefreshToken::getUserId, userId)
-                        .isNull(UserRefreshToken::getRevokedAt)
-                        .gt(UserRefreshToken::getExpiresAt, now)
-        );
+        return tokenMapper.revokeByIdIfActive(id, now) > 0;
     }
 
     /** 解析 token 格式：tokenId.secret */

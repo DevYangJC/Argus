@@ -1,6 +1,7 @@
 package com.argus.rag.common.exception;
 
 import com.argus.rag.common.api.ApiResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
@@ -13,6 +14,7 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 /**
  * 全局异常拦截，将各类异常映射为对应的 HTTP 状态码和 {@link ApiResponse}。
  */
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -56,5 +58,13 @@ public class GlobalExceptionHandler {
             MaxUploadSizeExceededException exception
     ) {
         return new ApiResponse<>(false, null, "上传文件超过大小限制");
+    }
+
+    /** 兜底处理，避免堆栈信息泄露到前端 */
+    @ExceptionHandler(Exception.class)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    public ApiResponse<Void> handleException(Exception exception) {
+        log.error("Unhandled exception", exception);
+        return new ApiResponse<>(false, null, "服务器内部错误");
     }
 }

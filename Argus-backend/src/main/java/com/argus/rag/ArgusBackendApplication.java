@@ -7,7 +7,7 @@ import org.springframework.scheduling.annotation.EnableAsync;
 
 @SpringBootApplication
 @EnableAsync
-@MapperScan("com.argus.rag")
+@MapperScan("com.argus.rag.**.mapper")
 public class ArgusBackendApplication {
 
     public static void main(String[] args) {
