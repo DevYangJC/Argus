@@ -51,10 +51,7 @@ public class AdminUserController {
 
     /** 修改用户状态（启用/禁用） */
     @PatchMapping("/{userId}/status")
-    public ApiResponse<Void> updateUserStatus(
-            @PathVariable Long userId,
-            @Valid @RequestBody UpdateUserStatusRequest request
-    ) {
+    public ApiResponse<Void> updateUserStatus(@PathVariable Long userId,@Valid @RequestBody UpdateUserStatusRequest request) {
         currentUserService.requireSystemAdmin();
         adminUserService.updateUserStatus(userId, request);
         return ApiResponse.success(null);

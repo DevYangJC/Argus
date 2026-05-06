@@ -82,10 +82,7 @@ public class AuthController {
 
     /** 登出：吊销 refresh token 并清除 Cookie */
     @PostMapping("/logout")
-    public ApiResponse<Void> logout(
-            HttpServletRequest request,
-            HttpServletResponse response
-    ) {
+    public ApiResponse<Void> logout( HttpServletRequest request,HttpServletResponse response) {
         authService.logout(extractRefreshToken(request));
         authCookieSupport.clearRefreshTokenCookie(response);
         return ApiResponse.success(null);

@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.argus.rag.groupmembership.mapper.GroupMembershipMapper">
+
+
+
+
+    <select id="selectOwnedGroupsByUserId" resultType="map">
+        select g.id as "groupId",
+               g.group_code as "groupCode",
+               g.group_name as "groupName"
+        from groups g
+        where g.owner_user_id = #{userId}
+          and g.status = 'ACTIVE'
+        order by g.id
+    </select>
+
+    <select id="selectJoinedGroupsByUserId" resultType="map">
+        select g.id as "groupId",
+               g.group_code as "groupCode",
+               g.group_name as "groupName"
+        from group_memberships gm
+                 inner join groups g on g.id = gm.group_id
+        where gm.user_id = #{userId}
+          and gm.role = 'MEMBER'
+          and g.status = 'ACTIVE'
+        order by g.id
+    </select>
+
+    <select id="selectPendingInvitationsByInviteeUserId" resultType="map">
+        select gi.id as "invitationId",
+               gi.group_id as "groupId",
+               g.group_name as "groupName",
+               gi.inviter_user_id as "inviterUserId",
+               u.display_name as "inviterDisplayName",
+               gi.status as "status"
+        from group_invitations gi
+                 inner join groups g on g.id = gi.group_id
+                 inner join users u on u.id = gi.inviter_user_id
+        where gi.invitee_user_id = #{inviteeUserId}
+          and gi.status = 'PENDING'
+          and g.status = 'ACTIVE'
+        order by gi.id
+    </select>
+
+    <select id="selectActiveMembershipRole" resultType="string">
+        select gm.role
+        from group_memberships gm
+        inner join groups g on g.id = gm.group_id
+        where gm.user_id = #{userId}
+          and gm.group_id = #{groupId}
+          and g.status = 'ACTIVE'
+    </select>
+
+    <select id="countActiveMembership" resultType="long">
+        select count(1)
+        from group_memberships gm
+        inner join groups g on g.id = gm.group_id
+        where gm.user_id = #{userId}
+          and gm.group_id = #{groupId}
+          and g.status = 'ACTIVE'
+    </select>
+
+    <select id="countMembershipByGroupIdAndUserId" resultType="long">
+        select count(1)
+        from group_memberships gm
+        inner join groups g on g.id = gm.group_id
+        where gm.group_id = #{groupId}
+          and gm.user_id = #{userId}
+          and g.status = 'ACTIVE'
+    </select>
+
+    <select id="countPendingInvitation" resultType="long">
+        select count(1)
+        from group_invitations
+        where group_id = #{groupId}
+          and invitee_user_id = #{inviteeUserId}
+          and status = 'PENDING'
+    </select>
+
+    <select id="countUserById" resultType="long">
+        select count(1)
+        from users
+        where id = #{userId}
+    </select>
+
+    <select id="insertGroupReturningId" resultType="long">
+        insert into groups (
+            group_code,
+            group_name,
+            description,
+            owner_user_id,
+            status,
+            created_at,
+            updated_at
+        )
+        values (
+            #{groupCode},
+            #{groupName},
+            #{description},
+            #{ownerUserId},
+            #{status},
+            now(),
+            now()
+        )
+        returning id
+    </select>
+
+    <insert id="insertMembership">
+        insert into group_memberships (
+            group_id,
+            user_id,
+            role,
+            created_at,
+            updated_at
+        )
+        values (
+            #{groupId},
+            #{userId},
+            #{role},
+            now(),
+            now()
+        )
+    </insert>
+
+    <insert id="insertPendingInvitation">
+        insert into group_invitations (
+            group_id,
+            inviter_user_id,
+            invitee_user_id,
+            status,
+            created_at,
+            updated_at
+        )
+        values (
+            #{groupId},
+            #{inviterUserId},
+            #{inviteeUserId},
+            #{status},
+            now(),
+            now()
+        )
+    </insert>
+
+    <select id="insertPendingInvitationReturningId" resultType="long">
+        insert into group_invitations (
+            group_id,
+            inviter_user_id,
+            invitee_user_id,
+            status,
+            created_at,
+            updated_at
+        )
+        values (
+            #{groupId},
+            #{inviterUserId},
+            #{inviteeUserId},
+            #{status},
+            now(),
+            now()
+        )
+        returning id
+    </select>
+
+    <select id="selectInvitationById" resultType="com.argus.rag.groupmembership.model.entity.GroupInvitation">
+        select gi.id, gi.group_id, gi.inviter_user_id, gi.invitee_user_id, gi.status
+        from group_invitations gi
+        inner join groups g on g.id = gi.group_id
+        where gi.id = #{invitationId}
+          and g.status = 'ACTIVE'
+    </select>
+
+    <update id="updateInvitationStatus">
+        update group_invitations
+        set status = #{toStatus},
+            decided_at = now(),
+            updated_at = now()
+        where id = #{invitationId}
+          and status = #{fromStatus}
+    </update>
+
+    <select id="selectMembersByGroupId" resultType="com.argus.rag.groupmembership.model.vo.GroupMemberResponse">
+        select u.id as "userId",
+               u.user_code as "userCode",
+               u.display_name as "displayName",
+               gm.role as "role"
+        from group_memberships gm
+        inner join users u on u.id = gm.user_id
+        inner join groups g on g.id = gm.group_id
+        where gm.group_id = #{groupId}
+          and g.status = 'ACTIVE'
+        order by case when gm.role = 'OWNER' then 0 else 1 end, gm.id
+    </select>
+
+    <delete id="deleteMembership">
+        delete from group_memberships
+        where group_id = #{groupId}
+          and user_id = #{userId}
+    </delete>
+</mapper>
