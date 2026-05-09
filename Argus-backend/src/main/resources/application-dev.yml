@@ -3,15 +3,15 @@ project:
   version: 1.0.0
 
 server:
-  port: 10008
+  port: 10001
 
 spring:
   application:
     name: argus-service
   datasource:
-    url: jdbc:postgresql://10.10.14.14:5432/ivs?currentSchema=public
-    username: tacncov
-    password: bA3-gC1aA
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:dd_rag}
+    username: ${DB_USERNAME:your-db-username}
+    password: ${DB_PASSWORD:your-db-password}
     driver-class-name: org.postgresql.Driver
 
   # ──────────────────────────────────────────────
@@ -22,13 +22,13 @@ spring:
       chat: dashscope
       embedding: openai
     dashscope:
-      api-key: ${DASHSCOPE_API_KEY:sk-0888d467df76428bb3946f91cf3e236e}
+      api-key: ${DASHSCOPE_API_KEY:your-dashscope-api-key}
       chat:
         options:
           model: qwen-plus
     openai:
-      api-key: ${OPENAI_API_KEY:sk-0888d467df76428bb3946f91cf3e236e}
-      base-url: https://dashscope.aliyuncs.com/compatible-mode
+      api-key: ${OPENAI_API_KEY:your-openai-compatible-api-key}
+      base-url: ${OPENAI_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode}
       embedding:
         options:
           # 指定维度，确保与数据库表结构一致
@@ -37,44 +37,60 @@ spring:
           # 单个输入超过模型 context length 时由 Ollama 截断，避免上传链路直接失败。
           truncate: true
 
-    # PGvector 向量存储
+    # 下面是 Ollama 相关配置，使用的话需要自己部署ollama对应的向量模型，然后放开spring-ai-starter-model-ollama，注释掉spring-ai-starter-model-openai
+#    model:
+#      chat: dashscope
+#      embedding: ollama
+#    dashscope:
+#      api-key: ${DASHSCOPE_API_KEY:}
+#      chat:
+#        options:
+#          model: glm-5
+#    ollama:
+#      base-url: http://localhost:11434
+#      embedding:
+#        options:
+#          model: qllama/bge-small-zh-v1.5
+#          # 单个输入超过模型 context length 时由 Ollama 截断，避免上传链路直接失败。
+#          truncate: true
+
+
+
+    # PGvector 向量存储（复用已有 PostgreSQL）
     vectorstore:
       pgvector:
-        index-type: HNSW
-        distance-type: COSINE_DISTANCE
         dimensions: 512
-        max-document-batch-size: 9
-        initialize-schema: true
-        table-name: vector_store
+        index-type: hnsw
+        distance-type: cosine_distance
+
+storage:
+  minio:
+    endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+    access-key: ${MINIO_ACCESS_KEY:your-minio-access-key}
+    secret-key: ${MINIO_SECRET_KEY:your-minio-secret-key}
+    bucket: ${MINIO_BUCKET:argus-rag-documents}
 
 rag:
   auth:
-    jwt-secret: server-dev-32byte-secret-key-minimum
+    jwt-secret: ${DD_RAG_JWT_SECRET:change-me-to-a-32byte-secret-key}
     issuer: argus-rag
     access-token-expire-minutes: 30
     refresh-token-expire-days: 14
     # 仅开发环境兜底，生产环境仍应显式配置安全密钥。
-#    jwt-secret: ${DD_RAG_JWT_SECRET:argus_rag-dev-jwt-secret-2026-04-20-32bytes}
+    #    jwt-secret: ${DD_RAG_JWT_SECRET:argus_rag-dev-jwt-secret-2026-04-20-32bytes}
     refresh-cookie-name: ARGUS_DD_RAG_REFRESH_TOKEN
     refresh-cookie-secure: false
   dev-admin:
-    username: ${DD_RAG_DEV_ADMIN_USERNAME:admin}
-    email: ${DD_RAG_DEV_ADMIN_EMAIL:admin@local.ddrag.test}
-    display-name: ${DD_RAG_DEV_ADMIN_DISPLAY_NAME:开发环境管理员}
-    password: ${DD_RAG_DEV_ADMIN_PASSWORD:Admin@123456}
-    user-code: ${DD_RAG_DEV_ADMIN_USER_CODE:admin}
-storage:
-  minio:
-    endpoint: http://192.168.200.130:9000
-    access-key: ${MINIO_ACCESS_KEY:minioadmin}
-    secret-key: ${MINIO_SECRET_KEY:minioadmin}
-    bucket: ${MINIO_BUCKET:argus-rag-documents}
-
+    username: ${DD_RAG_DEV_ADMIN_USERNAME:your-admin-username}
+    email: ${DD_RAG_DEV_ADMIN_EMAIL:your-admin-email@example.com}
+    display-name: ${DD_RAG_DEV_ADMIN_DISPLAY_NAME:your-display-name}
+    password: ${DD_RAG_DEV_ADMIN_PASSWORD:your-admin-password}
+    user-code: ${DD_RAG_DEV_ADMIN_USER_CODE:your-admin-code}
 
 elasticsearch:
-  host: 192.168.200.130
-  port: 9200
-  scheme: http
+  host: ${ES_HOST:localhost}
+  port: ${ES_PORT:9200}
+  scheme: ${ES_SCHEME:http}
   index-name: dd_rag_document_chunks
 
 ingestion:

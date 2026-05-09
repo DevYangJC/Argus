@@ -31,3 +31,7 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Local config (contains real credentials) ###
+application-local.yml
+**/application-local.yml
