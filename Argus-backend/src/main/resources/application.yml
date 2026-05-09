@@ -2,11 +2,29 @@ spring:
   profiles:
     active: local
 
+# ──────────────────────────────────────────────
 # MyBatis-Plus 配置
+# ──────────────────────────────────────────────
 mybatis-plus:
+  # Mapper XML 文件扫描路径
+  # classpath*: 支持从多个 jar/模块中加载（多模块项目安全写法）
+  # /mappers/**/*.xml 递归匹配所有子目录下的 XML 映射文件
+  # 当前匹配：mappers/、mappers/document/、mappers/ingestion/ 共 8 个文件
   mapper-locations: classpath*:/mappers/**/*.xml
+
+  # 实体类别名包扫描路径
+  # 注册后可在 XML 中直接使用类名（如 UserEntity）而无需写全限定名
+  # 扫描 com.argus.rag 包下所有类（含子包），覆盖各模块的 entity 类
   type-aliases-package: com.argus.rag
+
   configuration:
+    # 开启下划线到驼峰的自动映射
+    # 数据库字段 user_name → Java 属性 userName，无需逐字段配置 @TableField
     map-underscore-to-camel-case: true
+
+    # 默认枚举类型处理器
+    # EnumTypeHandler：使用枚举的 name()（字符串）存储到数据库
+    # 对比 EnumOrdinalTypeHandler（按序号存储，枚举顺序变化会导致数据错乱）
+    # 当前项目所有枚举均为简单枚举（无 @EnumValue），按 name 存储最安全
     default-enum-type-handler: org.apache.ibatis.type.EnumTypeHandler
 
