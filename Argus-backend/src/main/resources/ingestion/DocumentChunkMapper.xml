@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.argus.rag.ingestion.mapper.DocumentChunkMapper">
+
+    <delete id="deleteByDocumentId">
+        delete from document_chunks
+        where document_id = #{documentId}
+    </delete>
+
+    <select id="selectByDocumentId" resultType="com.argus.rag.ingestion.model.entity.DocumentChunkEntity">
+        select id,
+               document_id as documentId,
+               group_id as groupId,
+               chunk_index as chunkIndex,
+               chunk_text as chunkText,
+               chunk_summary as chunkSummary,
+               char_start as charStart,
+               char_end as charEnd,
+               metadata_json::text as metadataJson,
+               created_at as createdAt,
+               updated_at as updatedAt
+        from document_chunks
+        where document_id = #{documentId}
+        order by chunk_index asc, id asc
+    </select>
+
+    <select id="selectReadyActiveChunksByDocumentId" resultType="com.argus.rag.ingestion.model.entity.DocumentChunkEntity">
+        select chunks.id as id,
+               chunks.document_id as documentId,
+               chunks.group_id as groupId,
+               chunks.chunk_index as chunkIndex,
+               chunks.chunk_text as chunkText,
+               chunks.chunk_summary as chunkSummary,
+               chunks.char_start as charStart,
+               chunks.char_end as charEnd,
+               chunks.metadata_json::text as metadataJson,
+               chunks.created_at as createdAt,
+               chunks.updated_at as updatedAt
+        from document_chunks chunks
+                 join documents documents
+                      on documents.id = chunks.document_id
+                          and documents.group_id = chunks.group_id
+        where chunks.group_id = #{groupId}
+          and chunks.document_id = #{documentId}
+          and documents.status = 'READY'
+          and documents.deleted = false
+        order by chunks.chunk_index asc, chunks.id asc
+    </select>
+
+    <select id="selectReadyActiveChunksByIds" resultType="map">
+        select chunks.id as chunkId,
+               chunks.document_id as documentId,
+               chunks.chunk_index as chunkIndex,
+               chunks.chunk_text as chunkText,
+               documents.file_name as fileName
+        from document_chunks chunks
+                 join documents documents
+                      on documents.id = chunks.document_id
+                          and documents.group_id = chunks.group_id
+        where chunks.group_id = #{groupId}
+          and documents.status = 'READY'
+          and documents.deleted = false
+          and chunks.id in
+        <foreach collection="chunkIds" item="chunkId" open="(" separator="," close=")">
+            #{chunkId}
+        </foreach>
+    </select>
+
+    <select id="selectQaReadyChunksByIds" resultType="map">
+        select chunks.group_id as groupId,
+               chunks.id as chunkId,
+               chunks.document_id as documentId,
+               chunks.chunk_index as chunkIndex,
+               chunks.chunk_text as chunkText,
+               documents.file_name as fileName
+        from document_chunks chunks
+                 join documents documents
+                      on documents.id = chunks.document_id
+                          and documents.group_id = chunks.group_id
+        where chunks.group_id = #{groupId}
+          and documents.status = 'READY'
+          and documents.deleted = false
+          and chunks.id in
+        <foreach collection="chunkIds" item="chunkId" open="(" separator="," close=")">
+            #{chunkId}
+        </foreach>
+    </select>
+</mapper>

@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.argus.rag.document.mapper.DocumentMapper">
+
+    <select id="selectReadableDocuments"
+            parameterType="com.argus.rag.document.model.dto.DocumentQuery"
+            resultType="com.argus.rag.document.model.vo.DocumentListItemVO">
+        select d.id as documentId,
+               d.group_id as groupId,
+               d.file_name as fileName,
+               d.file_ext as fileExt,
+               d.content_type as contentType,
+               d.file_size as fileSize,
+               d.status as status,
+               d.failure_reason as failureReason,
+               d.uploaded_at as uploadedAt,
+               d.uploader_user_id as uploaderUserId,
+               u.user_code as uploaderUserCode,
+               u.display_name as uploaderDisplayName,
+               d.preview_text as previewText
+        from documents d
+        inner join users u on u.id = d.uploader_user_id
+        inner join groups g on g.id = d.group_id
+        inner join group_memberships gm on gm.group_id = d.group_id
+        where d.deleted = false
+          and g.status = 'ACTIVE'
+          and gm.user_id = #{currentUserId}
+        <if test="groupId != null">
+            and d.group_id = #{groupId}
+        </if>
+        <if test="groupRelation != null and groupRelation == 'OWNED'">
+            and gm.role = 'OWNER'
+        </if>
+        <if test="groupRelation != null and groupRelation == 'JOINED'">
+            and gm.role = 'MEMBER'
+        </if>
+        <if test="fileName != null and fileName != ''">
+            and d.file_name like concat('%', #{fileName}, '%')
+        </if>
+        <if test="uploaderUserId != null">
+            and d.uploader_user_id = #{uploaderUserId}
+        </if>
+        <if test="status != null and status != ''">
+            and d.status = #{status}
+        </if>
+        <if test="uploadedFrom != null">
+            and d.uploaded_at <![CDATA[>=]]> #{uploadedFrom}
+        </if>
+        <if test="uploadedTo != null">
+            and d.uploaded_at <![CDATA[<=]]> #{uploadedTo}
+        </if>
+        order by d.uploaded_at desc, d.id desc
+    </select>
+
+    <select id="selectByIdAndGroupId" resultType="com.argus.rag.document.model.entity.DocumentEntity">
+        select id,
+               group_id as groupId,
+               uploader_user_id as uploaderUserId,
+               file_name as fileName,
+               file_ext as fileExt,
+               content_type as contentType,
+               file_size as fileSize,
+               file_hash as fileHash,
+               storage_bucket as storageBucket,
+               storage_object_key as storageObjectKey,
+               status,
+               deleted,
+               failure_reason as failureReason,
+               preview_text as previewText,
+               uploaded_at as uploadedAt,
+               processed_at as processedAt,
+               created_at as createdAt,
+               updated_at as updatedAt
+        from documents
+        where id = #{documentId}
+          and group_id = #{groupId}
+          and deleted = false
+    </select>
+
+    <select id="selectByGroupIdAndFileHash" resultType="com.argus.rag.document.model.entity.DocumentEntity">
+        select id,
+               group_id as groupId,
+               uploader_user_id as uploaderUserId,
+               file_name as fileName,
+               file_ext as fileExt,
+               content_type as contentType,
+               file_size as fileSize,
+               file_hash as fileHash,
+               storage_bucket as storageBucket,
+               storage_object_key as storageObjectKey,
+               status,
+               deleted,
+               failure_reason as failureReason,
+               preview_text as previewText,
+               uploaded_at as uploadedAt,
+               processed_at as processedAt,
+               created_at as createdAt,
+               updated_at as updatedAt
+        from documents
+        where group_id = #{groupId}
+          and file_hash = #{fileHash}
+          and status = 'READY'
+          and deleted = false
+        order by uploaded_at desc, id desc
+        limit 1
+    </select>
+
+    <update id="markDeleted">
+        update documents
+        set deleted = true,
+            updated_at = now()
+        where id = #{documentId}
+          and group_id = #{groupId}
+          and deleted = false
+    </update>
+
+    <update id="markStaleProcessingDocumentsFailed">
+        update documents
+        set status = #{toStatus},
+            failure_reason = #{failureReason},
+            processed_at = #{processedAt},
+            updated_at = now()
+        where status = #{fromStatus}
+          and deleted = false
+        <if test="staleBefore != null">
+          and updated_at <![CDATA[<]]> #{staleBefore}
+        </if>
+    </update>
+</mapper>

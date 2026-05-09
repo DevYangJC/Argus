@@ -2,14 +2,16 @@ package com.argus.rag.auth.config;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
 /**
- * 认证相关配置属性，前缀 {@code ddrag.auth}。
+ * 认证相关配置属性，前缀 {@code rag.auth}。
  */
 @Validated
-@ConfigurationProperties(prefix = "ddrag.auth")
+@ConfigurationProperties(prefix = "rag.auth")
+@Data
 public class AuthProperties {
 
     /** JWT 签发者 */
@@ -30,26 +32,9 @@ public class AuthProperties {
 
     /** Refresh token Cookie 名称 */
     @NotBlank
-    private String refreshCookieName = "DD_RAG_REFRESH_TOKEN";
+    private String refreshCookieName = "ARGUS_DD_RAG_REFRESH_TOKEN";
 
     /** Refresh token Cookie 是否仅 HTTPS 发送（生产环境应设为 true） */
     private boolean refreshCookieSecure = true;
 
-    public String getIssuer() { return issuer; }
-    public void setIssuer(String issuer) { this.issuer = issuer; }
-
-    public int getAccessTokenExpireMinutes() { return accessTokenExpireMinutes; }
-    public void setAccessTokenExpireMinutes(int accessTokenExpireMinutes) { this.accessTokenExpireMinutes = accessTokenExpireMinutes; }
-
-    public int getRefreshTokenExpireDays() { return refreshTokenExpireDays; }
-    public void setRefreshTokenExpireDays(int refreshTokenExpireDays) { this.refreshTokenExpireDays = refreshTokenExpireDays; }
-
-    public String getJwtSecret() { return jwtSecret; }
-    public void setJwtSecret(String jwtSecret) { this.jwtSecret = jwtSecret; }
-
-    public String getRefreshCookieName() { return refreshCookieName; }
-    public void setRefreshCookieName(String refreshCookieName) { this.refreshCookieName = refreshCookieName; }
-
-    public boolean isRefreshCookieSecure() { return refreshCookieSecure; }
-    public void setRefreshCookieSecure(boolean refreshCookieSecure) { this.refreshCookieSecure = refreshCookieSecure; }
 }

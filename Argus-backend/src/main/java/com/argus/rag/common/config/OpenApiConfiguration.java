@@ -18,7 +18,6 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class OpenApiConfiguration {
 
-    private static final String SCHEME_NAME = "BearerAuth";
 
     @Bean
     OpenAPI argusOpenApi() {
@@ -26,13 +25,7 @@ public class OpenApiConfiguration {
                 .info(new Info()
                         .title("Argus API")
                         .description("Argus 知识库平台接口文档")
-                        .version("1.0.0"))
-                .components(new Components()
-                        .addSecuritySchemes(SCHEME_NAME,
-                                new SecurityScheme()
-                                        .type(SecurityScheme.Type.HTTP)
-                                        .scheme("bearer")
-                                        .bearerFormat("JWT")));
+                        .version("1.0.0"));
     }
 
     /** 逐个操作注入 SecurityRequirement，确保 Knife4j 每个接口都随请求带 Authorization */

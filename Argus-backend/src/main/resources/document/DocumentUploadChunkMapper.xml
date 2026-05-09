@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.argus.rag.document.mapper.DocumentUploadChunkMapper">
+
+    <resultMap id="documentUploadChunkEntityMap"
+               type="com.argus.rag.document.model.entity.DocumentUploadChunkEntity">
+        <id property="id" column="id"/>
+        <result property="uploadId" column="upload_id"/>
+        <result property="chunkIndex" column="chunk_index"/>
+        <result property="chunkSize" column="chunk_size"/>
+        <result property="chunkHash" column="chunk_hash"/>
+        <result property="storageBucket" column="storage_bucket"/>
+        <result property="storageObjectKey" column="storage_object_key"/>
+        <result property="uploadedAt" column="uploaded_at"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <insert id="upsert" parameterType="com.argus.rag.document.model.entity.DocumentUploadChunkEntity">
+        insert into document_upload_chunks (
+            upload_id,
+            chunk_index,
+            chunk_size,
+            chunk_hash,
+            storage_bucket,
+            storage_object_key,
+            uploaded_at,
+            created_at,
+            updated_at
+        ) values (
+            #{uploadId},
+            #{chunkIndex},
+            #{chunkSize},
+            #{chunkHash},
+            #{storageBucket},
+            #{storageObjectKey},
+            #{uploadedAt},
+            #{createdAt},
+            #{updatedAt}
+        )
+        on conflict (upload_id, chunk_index) do update
+        set chunk_size = excluded.chunk_size,
+            chunk_hash = excluded.chunk_hash,
+            storage_bucket = excluded.storage_bucket,
+            storage_object_key = excluded.storage_object_key,
+            uploaded_at = excluded.uploaded_at,
+            updated_at = excluded.updated_at
+    </insert>
+
+    <select id="selectByUploadId" resultMap="documentUploadChunkEntityMap">
+        select id,
+               upload_id,
+               chunk_index,
+               chunk_size,
+               chunk_hash,
+               storage_bucket,
+               storage_object_key,
+               uploaded_at,
+               created_at,
+               updated_at
+        from document_upload_chunks
+        where upload_id = #{uploadId}
+        order by chunk_index asc, id asc
+    </select>
+</mapper>

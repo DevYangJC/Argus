@@ -14,7 +14,71 @@ spring:
     password: 123456
     driver-class-name: org.postgresql.Driver
 
-ddrag:
+  # ──────────────────────────────────────────────
+  # Spring AI Alibaba — DashScope 原生配置
+  # ──────────────────────────────────────────────
+  ai:
+    model:
+      chat: dashscope
+      embedding: openai
+    dashscope:
+      api-key: ${DASHSCOPE_API_KEY:sk-0888d467df76428bb3946f91cf3e236e}
+      chat:
+        options:
+          model: qwen-plus
+    openai:
+      api-key: ${OPENAI_API_KEY:sk-0888d467df76428bb3946f91cf3e236e}
+      base-url: https://dashscope.aliyuncs.com/compatible-mode
+      embedding:
+        options:
+          # 指定维度，确保与数据库表结构一致
+          dimensions: 512
+          model: text-embedding-v3
+          # 单个输入超过模型 context length 时由 Ollama 截断，避免上传链路直接失败。
+          truncate: true
+
+    # PGvector 向量存储（复用已有 PostgreSQL）
+    vectorstore:
+      pgvector:
+        dimensions: 512
+        index-type: hnsw
+        distance-type: cosine_distance
+
+storage:
+  minio:
+    endpoint: http://192.168.200.130:9000
+    access-key: ${MINIO_ACCESS_KEY:minioadmin}
+    secret-key: ${MINIO_SECRET_KEY:minioadmin}
+    bucket: ${MINIO_BUCKET:argus-rag-documents}
+
+rag:
   auth:
-    jwt-secret: local-dev-32byte-secret-key-minimum!!
+    jwt-secret: server-dev-32byte-secret-key-minimum
+    issuer: argus-rag
+    access-token-expire-minutes: 30
+    refresh-token-expire-days: 14
+    # 仅开发环境兜底，生产环境仍应显式配置安全密钥。
+#    jwt-secret: ${DD_RAG_JWT_SECRET:argus_rag-dev-jwt-secret-2026-04-20-32bytes}
+    refresh-cookie-name: ARGUS_DD_RAG_REFRESH_TOKEN
     refresh-cookie-secure: false
+  dev-admin:
+    username: ${DD_RAG_DEV_ADMIN_USERNAME:admin}
+    email: ${DD_RAG_DEV_ADMIN_EMAIL:admin@local.ddrag.test}
+    display-name: ${DD_RAG_DEV_ADMIN_DISPLAY_NAME:开发环境管理员}
+    password: ${DD_RAG_DEV_ADMIN_PASSWORD:Admin@123456}
+    user-code: ${DD_RAG_DEV_ADMIN_USER_CODE:admin}
+
+elasticsearch:
+  host: 192.168.200.130
+  port: 9200
+  scheme: http
+  index-name: dd_rag_document_chunks
+
+ingestion:
+  chunking:
+    target-tokens: 240
+    max-tokens: 320
+    overlap-tokens: 32
+  vector:
+    # 控制业务侧每次调用 VectorStore.add 的 chunk 数量，降低单次 Ollama embedding 请求压力。
+    add-batch-size: 9

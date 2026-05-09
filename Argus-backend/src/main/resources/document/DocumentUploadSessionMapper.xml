@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.argus.rag.document.mapper.DocumentUploadSessionMapper">
+
+    <resultMap id="documentUploadSessionEntityMap"
+               type="com.argus.rag.document.model.entity.DocumentUploadSessionEntity">
+        <id property="id" column="id"/>
+        <result property="uploadId" column="upload_id"/>
+        <result property="groupId" column="group_id"/>
+        <result property="uploaderUserId" column="uploader_user_id"/>
+        <result property="fileName" column="file_name"/>
+        <result property="fileExt" column="file_ext"/>
+        <result property="contentType" column="content_type"/>
+        <result property="fileSize" column="file_size"/>
+        <result property="fileHash" column="file_hash"/>
+        <result property="chunkSize" column="chunk_size"/>
+        <result property="chunkCount" column="chunk_count"/>
+        <result property="status" column="status"/>
+        <result property="storageBucket" column="storage_bucket"/>
+        <result property="mergedObjectKey" column="merged_object_key"/>
+        <result property="expiresAt" column="expires_at"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <select id="selectByUploadId" resultMap="documentUploadSessionEntityMap">
+        select id,
+               upload_id,
+               group_id,
+               uploader_user_id,
+               file_name,
+               file_ext,
+               content_type,
+               file_size,
+               file_hash,
+               chunk_size,
+               chunk_count,
+               status,
+               storage_bucket,
+               merged_object_key,
+               expires_at,
+               created_at,
+               updated_at
+        from document_upload_sessions
+        where upload_id = #{uploadId}
+    </select>
+
+    <select id="selectLatestReusableSession" resultMap="documentUploadSessionEntityMap">
+        select id,
+               upload_id,
+               group_id,
+               uploader_user_id,
+               file_name,
+               file_ext,
+               content_type,
+               file_size,
+               file_hash,
+               chunk_size,
+               chunk_count,
+               status,
+               storage_bucket,
+               merged_object_key,
+               expires_at,
+               created_at,
+               updated_at
+        from document_upload_sessions
+        where group_id = #{groupId}
+          and uploader_user_id = #{uploaderUserId}
+          and file_hash = #{fileHash}
+          and status in ('INIT', 'UPLOADING', 'COMPLETING')
+          and expires_at > now()
+        order by updated_at desc, id desc
+        limit 1
+    </select>
+</mapper>
