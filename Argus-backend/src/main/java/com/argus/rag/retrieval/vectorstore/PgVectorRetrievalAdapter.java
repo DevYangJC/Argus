@@ -1,6 +1,9 @@
 package com.argus.rag.retrieval.vectorstore;
 
 import com.argus.rag.common.exception.BusinessException;
+import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
@@ -36,6 +39,7 @@ import java.util.Map;
  * @see VectorHit             检索命中结果记录
  */
 @Component
+@Slf4j
 public class PgVectorRetrievalAdapter {
 
     /** Spring AI 向量存储实例，负责与底层 PgVector 交互 */
@@ -68,14 +72,19 @@ public class PgVectorRetrievalAdapter {
      * @throws BusinessException 元数据缺失、格式非法或跨群组数据检测到时抛出
      */
     public List<VectorHit> search(Long groupId, String question, int topK) {
+        long startNano = System.nanoTime();
         SearchRequest searchRequest = SearchRequest.builder()
                 .query(question)
                 .topK(topK)
                 .filterExpression(new FilterExpressionBuilder().eq("groupId", groupId).build())
                 .build();
-        return vectorStore.similaritySearch(searchRequest).stream()
+        List<VectorHit> hits = vectorStore.similaritySearch(searchRequest).stream()
                 .map(document -> toVectorHit(groupId, document))
                 .toList();
+        long elapsedMs = (System.nanoTime() - startNano) / 1_000_000;
+        log.info("向量检索完成: groupId={}, topK={}, hitCount={}, elapsedMs={}",
+                groupId, topK, hits.size(), elapsedMs);
+        return hits;
     }
 
     /**

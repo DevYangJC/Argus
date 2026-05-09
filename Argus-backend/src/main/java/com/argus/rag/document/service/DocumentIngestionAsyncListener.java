@@ -1,5 +1,8 @@
 package com.argus.rag.document.service;
 
+import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
@@ -17,7 +20,9 @@ import org.springframework.transaction.event.TransactionalEventListener;
  * @since 1.0.0
  */
 @Component
+@Slf4j
 public class DocumentIngestionAsyncListener {
+
 
     /** 异步 ETL 执行服务 */
     private final DocumentIngestionAsyncService documentIngestionAsyncService;
@@ -42,6 +47,7 @@ public class DocumentIngestionAsyncListener {
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handle(DocumentIngestionRequestedEvent event) {
+        log.info("收到文档异步ETL事件(事务已提交): documentId={}, groupId={}", event.documentId(), event.groupId());
         documentIngestionAsyncService.ingestDocument(event.documentId(), event.groupId());
     }
 }

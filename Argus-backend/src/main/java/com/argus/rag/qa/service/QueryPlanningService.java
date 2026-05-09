@@ -68,9 +68,11 @@ public class QueryPlanningService {
 //                    .user(user -> user.text(renderUserPrompt(normalizedQuestion)))
                     .call()
                     .entity(QueryPlanResult.class);
-            return validatePlan(rawResult, normalizedQuestion);
+            QueryPlanResult validatedPlan = validatePlan(rawResult, normalizedQuestion);
+            log.info("查询规划完成: strategy={}, queries={}", validatedPlan.strategy(), validatedPlan.queries());
+            return validatedPlan;
         } catch (RuntimeException exception) {
-            log.warn("Query planning failed, fallback to direct query. question={}", normalizedQuestion, exception);
+            log.warn("查询规划失败，回退为直接检索: question={}", normalizedQuestion, exception);
             return QueryPlanResult.fallback(normalizedQuestion);
         }
     }

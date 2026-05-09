@@ -155,6 +155,7 @@ public class DocumentIngestionAsyncService {
      * @param documentId 文档 ID
      */
     private void cleanupProcessingArtifacts(Long documentId) {
+        log.info("开始清理上次处理中间产物: documentId={}", documentId);
         try {
             documentChunkMapper.deleteByDocumentId(documentId);
         } catch (RuntimeException exception) {
@@ -170,6 +171,7 @@ public class DocumentIngestionAsyncService {
         } catch (RuntimeException exception) {
             log.warn("清理旧 ES 索引失败: documentId={}, reason={}", documentId, exception.getMessage());
         }
+        log.info("中间产物清理完成: documentId={}", documentId);
     }
 
     /**
@@ -178,8 +180,10 @@ public class DocumentIngestionAsyncService {
      * @param document 文档实体
      */
     private void syncSearchIndex(DocumentEntity document) {
+        log.info("开始同步ES搜索索引: documentId={}, fileName={}", document.getId(), document.getFileName());
         List<DocumentChunkEntity> chunks = documentChunkMapper.selectByDocumentId(document.getId());
         elasticsearchChunkIndexService.indexReadyChunks(document.getFileName(), chunks);
+        log.info("ES搜索索引同步完成: documentId={}, indexedChunks={}", document.getId(), chunks.size());
     }
 
     /**

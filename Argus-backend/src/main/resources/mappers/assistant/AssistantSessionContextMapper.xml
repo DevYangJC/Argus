@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.argus.rag.assistant.mapper.AssistantSessionContextMapper">
+
+    <resultMap id="assistantSessionContextEntityMap" type="com.argus.rag.assistant.model.entity.AssistantSessionContextEntity">
+        <id property="sessionId" column="session_id"/>
+        <result property="sessionMemory" column="session_memory"/>
+        <result property="compactSummary" column="compact_summary"/>
+        <result property="sessionMemoryBaseMessageId" column="session_memory_base_message_id"/>
+        <result property="sessionMemoryRangeEndMessageId" column="session_memory_range_end_message_id"/>
+        <result property="compactSummaryBaseMessageId" column="compact_summary_base_message_id"/>
+        <result property="compactSummaryRangeEndMessageId" column="compact_summary_range_end_message_id"/>
+        <result property="summaryText" column="summary_text"/>
+        <result property="sourceMessageId" column="source_message_id"/>
+        <result property="contextVersion" column="context_version"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <select id="selectBySessionId" resultMap="assistantSessionContextEntityMap">
+        select session_id,
+               session_memory,
+               compact_summary,
+               session_memory_base_message_id,
+               session_memory_range_end_message_id,
+               compact_summary_base_message_id,
+               compact_summary_range_end_message_id,
+               summary_text,
+               source_message_id,
+               context_version,
+               updated_at
+        from assistant_session_contexts
+        where session_id = #{sessionId}
+    </select>
+
+    <insert id="upsert" parameterType="com.argus.rag.assistant.model.entity.AssistantSessionContextEntity">
+        insert into assistant_session_contexts (
+            session_id,
+            session_memory,
+            compact_summary,
+            session_memory_base_message_id,
+            session_memory_range_end_message_id,
+            compact_summary_base_message_id,
+            compact_summary_range_end_message_id,
+            summary_text,
+            source_message_id,
+            context_version,
+            updated_at
+        ) values (
+            #{sessionId},
+            #{sessionMemory},
+            #{compactSummary},
+            #{sessionMemoryBaseMessageId},
+            #{sessionMemoryRangeEndMessageId},
+            #{compactSummaryBaseMessageId},
+            #{compactSummaryRangeEndMessageId},
+            #{summaryText},
+            #{sourceMessageId},
+            coalesce(#{contextVersion}, 0),
+            #{updatedAt}
+        )
+        on conflict (session_id) do update
+        set session_memory = excluded.session_memory,
+            compact_summary = coalesce(excluded.compact_summary, assistant_session_contexts.compact_summary),
+            session_memory_base_message_id = coalesce(
+                excluded.session_memory_base_message_id,
+                assistant_session_contexts.session_memory_base_message_id
+            ),
+            session_memory_range_end_message_id = coalesce(
+                excluded.session_memory_range_end_message_id,
+                assistant_session_contexts.session_memory_range_end_message_id
+            ),
+            compact_summary_base_message_id = coalesce(
+                excluded.compact_summary_base_message_id,
+                assistant_session_contexts.compact_summary_base_message_id
+            ),
+            compact_summary_range_end_message_id = coalesce(
+                excluded.compact_summary_range_end_message_id,
+                assistant_session_contexts.compact_summary_range_end_message_id
+            ),
+            summary_text = coalesce(excluded.summary_text, assistant_session_contexts.summary_text),
+            source_message_id = coalesce(
+                excluded.source_message_id,
+                assistant_session_contexts.source_message_id
+            ),
+            context_version = coalesce(excluded.context_version, assistant_session_contexts.context_version),
+            updated_at = excluded.updated_at
+    </insert>
+
+    <update id="updateShortTermMemoryWithVersion">
+        update assistant_session_contexts
+        set session_memory = #{context.sessionMemory},
+            compact_summary = #{context.compactSummary},
+            session_memory_base_message_id = #{context.sessionMemoryBaseMessageId},
+            session_memory_range_end_message_id = #{context.sessionMemoryRangeEndMessageId},
+            compact_summary_base_message_id = #{context.compactSummaryBaseMessageId},
+            compact_summary_range_end_message_id = #{context.compactSummaryRangeEndMessageId},
+            context_version = #{context.contextVersion},
+            updated_at = #{context.updatedAt}
+        where session_id = #{context.sessionId}
+          and context_version = #{expectedVersion}
+    </update>
+
+    <delete id="deleteBySessionId">
+        delete from assistant_session_contexts
+        where session_id = #{sessionId}
+    </delete>
+</mapper>

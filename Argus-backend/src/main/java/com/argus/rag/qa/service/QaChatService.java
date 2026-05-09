@@ -87,18 +87,30 @@ public class QaChatService {
      * @return 问答响应
      */
     public AskQuestionResponse ask(Long groupId, String question) {
+        long startNano = System.nanoTime();
+        log.info("问答请求开始: groupId={}, questionLength={}", groupId, question != null ? question.length() : 0);
         RetrievedEvidenceBundle evidenceBundle = documentRetriever.retrieveEvidence(groupId, question);
         List<Document> documents = evidenceBundle.documents();
+        log.info("证据检索完成: groupId={}, evidenceCount={}, evidenceLevel={}",
+                groupId, documents.size(), evidenceBundle.evidenceLevel());
         if (documents.isEmpty()) {
+            log.info("问答无证据可答: groupId={}, elapsedMs={}",
+                    groupId, (System.nanoTime() - startNano) / 1_000_000);
             return AskQuestionResponse.unanswered(INSUFFICIENT_CODE, INSUFFICIENT_MESSAGE, List.of());
         }
         KnowledgeAnswerOutput output = getStructuredAnswer(groupId, question, evidenceBundle);
         if (output == null) {
+            log.warn("问答结构化输出失败: groupId={}, evidenceCount={}", groupId, documents.size());
             return AskQuestionResponse.unanswered(FORMAT_ERROR_CODE, FORMAT_ERROR_MESSAGE, List.of());
         }
         if (!output.answered() || !StringUtils.hasText(output.answer())) {
+            log.info("模型拒答: groupId={}, reasonCode={}, reasonMessage={}",
+                    groupId, output.reasonCode(), output.reasonMessage());
             return AskQuestionResponse.unanswered(output.reasonCode(), output.reasonMessage(), List.of());
         }
+        long elapsedMs = (System.nanoTime() - startNano) / 1_000_000;
+        log.info("问答请求完成: groupId={}, answerLength={}, citationCount={}, elapsedMs={}",
+                groupId, output.answer().length(), documents.size(), elapsedMs);
         return AskQuestionResponse.answered(
                 output.answer().trim(),
                 citationAssembler.assembleDocuments(documents)

@@ -262,11 +262,13 @@ public class DocumentService {
         if (documentId == null || documentId <= 0) {
             throw new BusinessException("文档ID非法");
         }
+        log.info("开始软删除文档: groupId={}, documentId={}", groupId, documentId);
         if (documentMapper.markDeleted(documentId, groupId) == 0) {
             throw new BusinessException("文档不存在或已删除");
         }
         vectorIngestionService.deleteDocumentVectors(documentId);
         elasticsearchChunkIndexService.deleteDocumentChunks(documentId);
+        log.info("文档软删除完成: groupId={}, documentId={}", groupId, documentId);
     }
 
     /**
@@ -295,6 +297,7 @@ public class DocumentService {
         if (!DocumentStatus.FAILED.name().equals(document.getStatus())) {
             throw new BusinessException("仅失败文档支持重新处理");
         }
+        log.info("开始重试失败文档摄入: documentId={}, groupId={}", documentId, requiredGroupId);
         int updated = documentMapper.update(null, new LambdaUpdateWrapper<DocumentEntity>()
                 .eq(DocumentEntity::getId, documentId)
                 .eq(DocumentEntity::getGroupId, requiredGroupId)
@@ -306,6 +309,7 @@ public class DocumentService {
             throw new BusinessException("重置文档状态失败");
         }
         publishIngestionRequestedEvent(documentId, requiredGroupId);
+        log.info("失败文档重试已触发: documentId={}, groupId={}, newStatus={}", documentId, requiredGroupId, DocumentStatus.PROCESSING.name());
     }
 
     /**

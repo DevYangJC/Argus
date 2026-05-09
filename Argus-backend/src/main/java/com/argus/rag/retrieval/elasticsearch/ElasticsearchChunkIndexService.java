@@ -205,11 +205,14 @@ public class ElasticsearchChunkIndexService {
             return List.of();
         }
         ensureIndexInitialized();
+        long startNano = System.nanoTime();
         Map<String, Object> requestBody = buildKeywordSearchRequestBody(groupId, question, topK);
         try {
             JsonNode root = sendJsonRequest("POST", "/%s/_search".formatted(indexName), requestBody, true);
             JsonNode hitsNode = root.path("hits").path("hits");
             if (!hitsNode.isArray() || hitsNode.isEmpty()) {
+                long elapsedMs = (System.nanoTime() - startNano) / 1_000_000;
+                log.info("关键词检索完成: groupId={}, topK={}, hitCount=0, elapsedMs={}", groupId, topK, elapsedMs);
                 return List.of();
             }
             List<KeywordHit> hits = new ArrayList<>();
@@ -226,12 +229,17 @@ public class ElasticsearchChunkIndexService {
                         normalizeKeywordScore(rawScore)
                 ));
             }
+            long elapsedMs = (System.nanoTime() - startNano) / 1_000_000;
+            log.info("关键词检索完成: groupId={}, topK={}, hitCount={}, elapsedMs={}",
+                    groupId, topK, hits.size(), elapsedMs);
             return List.copyOf(hits);
         } catch (RuntimeException exception) {
+            long elapsedMs = (System.nanoTime() - startNano) / 1_000_000;
             log.warn(
-                    "ES 关键词检索失败，降级为空结果: groupId={}, question='{}', reason={}",
+                    "ES 关键词检索失败，降级为空结果: groupId={}, question='{}', elapsedMs={}, reason={}",
                     groupId,
                     abbreviate(question),
+                    elapsedMs,
                     exception.getMessage()
             );
             return List.of();

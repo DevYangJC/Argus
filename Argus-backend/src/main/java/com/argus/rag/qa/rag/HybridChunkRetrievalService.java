@@ -8,6 +8,9 @@ import com.argus.rag.qa.model.QueryPlanResult;
 import com.argus.rag.qa.service.QueryPlanningService;
 import com.argus.rag.retrieval.elasticsearch.ElasticsearchChunkIndexService;
 import com.argus.rag.retrieval.vectorstore.PgVectorRetrievalAdapter;
+import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -33,7 +36,9 @@ import java.util.*;
  * </ol>
  */
 @Service
+@Slf4j
 public class HybridChunkRetrievalService {
+
 
     /** 默认邻居窗口大小（向前向后各扩展的切片数） */
     private static final int DEFAULT_NEIGHBOR_WINDOW = 1;
@@ -101,10 +106,13 @@ public class HybridChunkRetrievalService {
      * @return 检索证据束
      */
     public RetrievedEvidenceBundle retrieve(Long groupId, String question, int topK) {
+        long startNano = System.nanoTime();
         Long validGroupId = requirePositiveGroupId(groupId);
         String normalizedQuestion = requireQuestion(question);
         int validTopK = topK > 0 ? topK : 5;
+        log.info("混合检索开始: groupId={}, topK={}, questionLength={}", validGroupId, validTopK, normalizedQuestion.length());
         QueryPlanResult queryPlan = queryPlanningService.plan(normalizedQuestion);
+        log.info("查询规划完成: groupId={}, strategy={}, queries={}", validGroupId, queryPlan.strategy(), queryPlan.queries());
         Map<Long, RetrievalCandidate> candidates = new LinkedHashMap<>();
 
         for (String plannedQuery : queryPlan.queries()) {
@@ -112,7 +120,14 @@ public class HybridChunkRetrievalService {
             mergeKeywordHits(candidates, validGroupId, plannedQuery);
         }
 
+        long vectorHitCount = candidates.values().stream().filter(c -> c.vectorMatched).count();
+        long keywordHitCount = candidates.values().stream().filter(c -> c.keywordMatched).count();
+        log.info("双路检索完成: groupId={}, candidateCount={}, vectorHits={}, keywordHits={}",
+                validGroupId, candidates.size(), vectorHitCount, keywordHitCount);
+
         if (candidates.isEmpty()) {
+            long elapsedMs = (System.nanoTime() - startNano) / 1_000_000;
+            log.info("混合检索结果为空: groupId={}, elapsedMs={}", validGroupId, elapsedMs);
             return RetrievedEvidenceBundle.empty();
         }
 
@@ -123,6 +138,8 @@ public class HybridChunkRetrievalService {
                 .limit(validTopK)
                 .toList();
         List<RetrievalCluster> rankedClusters = buildClusters(rankedCandidates);
+        log.info("RRF融合排序完成: groupId={}, rankedCandidates={}, clusters={}",
+                validGroupId, rankedCandidates.size(), rankedClusters.size());
 
         List<Long> chunkIds = rankedCandidates.stream().map(RetrievalCandidate::chunkId).toList();
         Map<Long, Map<String, Object>> rowByChunkId = indexRows(
@@ -144,9 +161,14 @@ public class HybridChunkRetrievalService {
             evidenceIndex++;
         }
         if (documents.isEmpty()) {
+            long elapsedMs = (System.nanoTime() - startNano) / 1_000_000;
+            log.info("混合检索证据组装为空: groupId={}, elapsedMs={}", validGroupId, elapsedMs);
             return RetrievedEvidenceBundle.empty();
         }
         EvidenceLevel evidenceLevel = evaluateEvidenceLevel(documents);
+        long elapsedMs = (System.nanoTime() - startNano) / 1_000_000;
+        log.info("混合检索完成: groupId={}, evidenceCount={}, evidenceLevel={}, elapsedMs={}",
+                validGroupId, documents.size(), evidenceLevel, elapsedMs);
         return new RetrievedEvidenceBundle(documents, evidenceLevel, buildEvidenceGuidance(evidenceLevel));
     }
 

@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.argus.rag.assistant.mapper.AssistantSessionMapper">
+
+    <resultMap id="assistantSessionEntityMap" type="com.argus.rag.assistant.model.entity.AssistantSessionEntity">
+        <id property="id" column="id"/>
+        <result property="userId" column="user_id"/>
+        <result property="title" column="title"/>
+        <result property="status" column="status"/>
+        <result property="lastMessageAt" column="last_message_at"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.argus.rag.assistant.model.entity.AssistantSessionEntity"
+            useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        insert into assistant_sessions (
+            user_id,
+            title,
+            status,
+            last_message_at,
+            created_at,
+            updated_at
+        )
+        values (
+            #{userId},
+            #{title},
+            #{status},
+            #{lastMessageAt},
+            #{createdAt},
+            #{updatedAt}
+        )
+    </insert>
+
+    <select id="selectByUserIdOrderByLastMessageAtDesc" resultMap="assistantSessionEntityMap">
+        select id,
+               user_id,
+               title,
+               status,
+               last_message_at,
+               created_at,
+               updated_at
+        from assistant_sessions
+        where user_id = #{userId}
+          and status &lt;&gt; 'DELETED'
+        order by last_message_at desc nulls last, id desc
+    </select>
+
+    <select id="selectByIdAndUserId" resultMap="assistantSessionEntityMap">
+        select id,
+               user_id,
+               title,
+               status,
+               last_message_at,
+               created_at,
+               updated_at
+        from assistant_sessions
+        where id = #{sessionId}
+          and user_id = #{userId}
+          and status &lt;&gt; 'DELETED'
+    </select>
+
+    <update id="updateLastMessageAt">
+        update assistant_sessions
+        set last_message_at = #{lastMessageAt},
+            updated_at = #{lastMessageAt}
+        where id = #{sessionId}
+          and user_id = #{userId}
+          and status &lt;&gt; 'DELETED'
+    </update>
+
+    <update id="updateTitle">
+        update assistant_sessions
+        set title = #{title},
+            updated_at = #{updatedAt}
+        where id = #{sessionId}
+          and user_id = #{userId}
+          and status &lt;&gt; 'DELETED'
+    </update>
+
+    <delete id="deleteByIdAndUserId">
+        delete from assistant_sessions
+        where id = #{sessionId}
+          and user_id = #{userId}
+    </delete>
+</mapper>

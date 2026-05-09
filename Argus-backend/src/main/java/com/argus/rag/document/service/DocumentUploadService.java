@@ -16,6 +16,9 @@ import com.argus.rag.document.model.vo.UploadStatusResponse;
 import com.argus.rag.groupmembership.service.GroupMembershipService;
 import com.argus.rag.storage.service.ObjectStorageService;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -40,7 +43,9 @@ import java.util.UUID;
  * @since 1.0.0
  */
 @Service
+@Slf4j
 public class DocumentUploadService {
+
 
     /** 文件名最大长度 */
     private static final int MAX_FILE_NAME_LENGTH = 255;
@@ -131,6 +136,8 @@ public class DocumentUploadService {
         CurrentUserService.CurrentUser currentUser = groupMembershipService.requireGroupOwner(groupId);
         DocumentEntity existingDocument = documentMapper.selectByGroupIdAndFileHash(groupId, normalizedRequest.fileHash());
         if (existingDocument != null && "READY".equals(existingDocument.getStatus())) {
+            log.info("分片上传-秒传复用: groupId={}, userId={}, fileName={}, fileHash={}, reusedDocumentId={}",
+                    groupId, currentUser.userId(), normalizedRequest.fileName(), normalizedRequest.fileHash(), existingDocument.getId());
             Long documentId = documentService.createInstantUploadedDocument(
                     groupId,
                     currentUser.userId(),
@@ -145,6 +152,9 @@ public class DocumentUploadService {
                 normalizedRequest.fileHash()
         );
         if (existingSession != null) {
+            log.info("分片上传-续传恢复: groupId={}, userId={}, uploadId={}, fileName={}, fileHash={}, chunkSize={}, chunkCount={}",
+                    groupId, currentUser.userId(), existingSession.getUploadId(), normalizedRequest.fileName(),
+                    normalizedRequest.fileHash(), existingSession.getChunkSize(), existingSession.getChunkCount());
             List<Integer> uploadedChunks = documentUploadChunkMapper.selectByUploadId(existingSession.getUploadId()).stream()
                     .map(DocumentUploadChunkEntity::getChunkIndex)
                     .toList();
@@ -157,6 +167,9 @@ public class DocumentUploadService {
         }
         DocumentUploadSessionEntity session = buildUploadSession(groupId, currentUser.userId(), normalizedRequest);
         documentUploadSessionMapper.insert(session);
+        log.info("分片上传-新建会话: groupId={}, userId={}, uploadId={}, fileName={}, fileHash={}, fileSize={}, chunkSize={}, chunkCount={}",
+                groupId, currentUser.userId(), session.getUploadId(), normalizedRequest.fileName(),
+                normalizedRequest.fileHash(), normalizedRequest.fileSize(), normalizedRequest.chunkSize(), normalizedRequest.chunkCount());
         return UploadInitResponse.uploadSession(session.getUploadId(), session.getChunkSize(), session.getChunkCount());
     }
 
@@ -178,6 +191,8 @@ public class DocumentUploadService {
         MultipartFile chunk = requireChunk(uploadRequest, session);
         String chunkHash = normalizeFileHash(uploadRequest.chunkHash());
         String objectKey = buildChunkObjectKey(session.getGroupId(), session.getUploadId(), uploadRequest.chunkIndex());
+        log.debug("分片上传-接收分片: uploadId={}, chunkIndex={}/{}, chunkSize={}",
+                uploadRequest.uploadId(), uploadRequest.chunkIndex(), session.getChunkCount(), chunk.getSize());
         LocalDateTime now = LocalDateTime.now();
         try {
             objectStorageService.putObject(
@@ -210,9 +225,14 @@ public class DocumentUploadService {
                 .set(DocumentUploadSessionEntity::getMergedObjectKey, null)
                 .set(DocumentUploadSessionEntity::getUpdatedAt, now)
         );
-        return documentUploadChunkMapper.selectByUploadId(session.getUploadId()).stream()
+        List<Integer> uploadedChunkIndexes = documentUploadChunkMapper.selectByUploadId(session.getUploadId()).stream()
                 .map(DocumentUploadChunkEntity::getChunkIndex)
                 .toList();
+        if (uploadedChunkIndexes.size() == session.getChunkCount()) {
+            log.info("分片上传-全部接收完成: uploadId={}, fileName={}, totalChunks={}",
+                    session.getUploadId(), session.getFileName(), session.getChunkCount());
+        }
+        return uploadedChunkIndexes;
     }
 
     /**
@@ -240,6 +260,8 @@ public class DocumentUploadService {
                 .sorted(Comparator.comparing(DocumentUploadChunkEntity::getChunkIndex))
                 .toList();
         ensureAllChunksPresent(session, chunks);
+        log.info("分片上传-开始合并: uploadId={}, fileName={}, fileSize={}, chunkCount={}",
+                uploadId, session.getFileName(), session.getFileSize(), chunks.size());
         String objectKey = buildFinalObjectKey(session);
         LocalDateTime now = LocalDateTime.now();
         documentUploadSessionMapper.update(null, new LambdaUpdateWrapper<DocumentUploadSessionEntity>()
@@ -272,8 +294,12 @@ public class DocumentUploadService {
                     .set(DocumentUploadSessionEntity::getMergedObjectKey, objectKey)
                     .set(DocumentUploadSessionEntity::getUpdatedAt, LocalDateTime.now())
             );
+            log.info("分片上传-合并完成: uploadId={}, fileName={}, documentId={}, objectKey={}",
+                    uploadId, session.getFileName(), documentId, objectKey);
             return documentId;
         } catch (RuntimeException exception) {
+            log.error("分片上传-合并失败: uploadId={}, fileName={}, reason={}",
+                    uploadId, session.getFileName(), exception.getMessage(), exception);
             try {
                 objectStorageService.deleteObject(session.getStorageBucket(), objectKey);
             } catch (RuntimeException ignored) {
