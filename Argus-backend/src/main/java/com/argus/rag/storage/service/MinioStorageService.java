@@ -33,7 +33,7 @@ import java.util.concurrent.TimeUnit;
  * 使用「双重检查锁定 + ConcurrentHashMap 缓存」保证线程安全和高性能——
  * 已就绪的桶会被缓存，后续请求无需重复检查。
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @see ObjectStorageService         服务契约接口
  * @see MissingObjectStorageService  未配置时的降级占位实现
  */

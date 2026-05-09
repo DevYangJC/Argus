@@ -36,7 +36,7 @@ import org.springframework.context.annotation.Configuration;
  *         抛出明确的 {@link IllegalStateException} 而非 NPE</li>
  * </ul>
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 @Configuration(proxyBeanMethods = false)

@@ -19,7 +19,7 @@ import java.time.LocalDateTime;
  * 来跳过已成功上传的分片，只上传尚未完成的部分。
  * </p>
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 @Data

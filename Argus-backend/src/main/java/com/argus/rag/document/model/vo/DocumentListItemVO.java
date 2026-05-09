@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
  * 由 MyBatis 多表联查（documents + users）直接映射填充。
  * </p>
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 @Data

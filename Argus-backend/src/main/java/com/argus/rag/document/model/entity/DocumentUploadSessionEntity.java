@@ -19,7 +19,7 @@ import java.time.LocalDateTime;
  * 则可以直接复用已有会话，无需重新上传。
  * </p>
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 @Data

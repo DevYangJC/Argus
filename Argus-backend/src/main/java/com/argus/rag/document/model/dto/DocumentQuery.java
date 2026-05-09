@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
  * 状态筛选和上传时间范围等。支持按用户群组角色进行权限过滤。
  * </p>
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 @Data

@@ -22,7 +22,7 @@ import java.util.*;
 /**
  * 向量写入服务，负责将 {@link DocumentChunkEntity} 批量写入 {@link VectorStore} 并管理元数据。
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 @Service

@@ -22,7 +22,7 @@ import java.util.*;
  * <p>负责将 Spring AI {@link Document} 切片列表转换为 {@link DocumentChunkEntity}，
  * 删除旧切片后批量写入数据库，并回填自增主键。
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 @Service

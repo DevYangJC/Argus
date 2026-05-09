@@ -16,7 +16,7 @@ public class AuthProperties {
 
     /** JWT 签发者 */
     @NotBlank
-    private String issuer = "dd-rag";
+    private String issuer = "argus-rag";
 
     /** Access token 有效期（分钟） */
     @Min(1)

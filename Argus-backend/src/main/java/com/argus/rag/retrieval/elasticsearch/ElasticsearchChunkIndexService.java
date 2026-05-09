@@ -52,7 +52,7 @@ import java.util.Map;
  * <b>通信方式：</b>通过 JDK 原生 {@link HttpClient} 直接调用 ES REST API，
  * 无第三方 ES 客户端依赖。
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @see KeywordHit 关键词检索命中结果记录
  */
 @Service

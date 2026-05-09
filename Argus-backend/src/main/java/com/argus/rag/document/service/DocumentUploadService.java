@@ -36,7 +36,7 @@ import java.util.UUID;
  *
  * <p>上传会话在 24 小时后过期。
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 @Service

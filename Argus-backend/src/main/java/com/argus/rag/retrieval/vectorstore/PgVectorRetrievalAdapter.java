@@ -31,7 +31,7 @@ import java.util.Map;
  * {@link Number} 和 {@link String} 两种类型的元数据值，
  * 适配不同向量数据库驱动可能产生的类型差异。
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @see VectorStore           Spring AI 向量存储抽象
  * @see VectorHit             检索命中结果记录
  */

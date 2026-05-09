@@ -8,7 +8,7 @@ package com.argus.rag.document.model.dto;
  * 否则创建新的上传会话。
  * </p>
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 public record UploadInitRequest(

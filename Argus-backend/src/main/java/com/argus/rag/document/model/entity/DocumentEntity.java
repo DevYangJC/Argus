@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
  * 通过 groupId 与群组关联，实现文档的群组级别隔离。
  * </p>
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 @Data

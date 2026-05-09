@@ -31,7 +31,7 @@ import java.util.Map;
  * <p>解析器获取前会对扩展名进行规范化处理：去除前导的点（{@code .}）并转为小写英文，
  * 确保 {@code .TXT}、{@code TXT}、{@code txt} 等输入均能正确匹配。</p>
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 @Component

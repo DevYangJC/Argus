@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 /**
  * 文档切片实体，映射 {@code document_chunks} 表。
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 @TableName("document_chunks")

@@ -34,7 +34,7 @@ import java.io.InputStream;
  * <p>如果编码检测失败或读取异常，将抛出包含 "Markdown 文档解析失败" 消息的
  * {@link com.argus.rag.common.exception.BusinessException}。</p>
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 public class MdDocumentParser implements DocumentParser {

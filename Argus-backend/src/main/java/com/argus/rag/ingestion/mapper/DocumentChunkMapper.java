@@ -15,7 +15,7 @@ import java.util.Map;
  * 删除旧切片和批量插入等功能。切片数据用于向量检索和全文搜索。
  * </p>
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 @Mapper

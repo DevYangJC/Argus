@@ -13,7 +13,7 @@ import java.util.List;
  * </ul>
  * </p>
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 public record UploadInitResponse(

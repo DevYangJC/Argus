@@ -33,7 +33,7 @@ import java.util.zip.ZipException;
  * <p>所有异常统一包装为
  * {@link com.argus.rag.common.exception.BusinessException}。</p>
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 public class DocxDocumentParser implements DocumentParser {

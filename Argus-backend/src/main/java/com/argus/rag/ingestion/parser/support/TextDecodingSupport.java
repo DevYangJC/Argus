@@ -40,7 +40,7 @@ import java.util.List;
  * <h3>不可实例化</h3>
  * <p>所有方法均为静态方法，构造器私有化以防止实例化。</p>
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 public final class TextDecodingSupport {

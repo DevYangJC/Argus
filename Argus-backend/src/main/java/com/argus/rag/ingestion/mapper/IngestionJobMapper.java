@@ -15,7 +15,7 @@ import java.util.List;
  * 以及可运行任务查询。通用 insert / selectById 由 BaseMapper 提供。
  * </p>
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 @Mapper

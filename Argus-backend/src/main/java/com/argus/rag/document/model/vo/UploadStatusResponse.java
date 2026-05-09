@@ -8,7 +8,7 @@ import java.util.List;
  * 返回上传会话的当前状态和进度信息，前端可以轮询此接口获取上传进度。
  * </p>
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 public record UploadStatusResponse(

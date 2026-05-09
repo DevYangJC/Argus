@@ -14,7 +14,7 @@ import java.util.regex.Pattern;
 /**
  * 基于文档结构边界（Markdown 标题、段落）将长文档拆分为语义完整的 token 预算分块。
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 @Component

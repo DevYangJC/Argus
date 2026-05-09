@@ -36,7 +36,7 @@ import java.util.List;
  * <p>通过 {@link Retryable} 注解支持失败自动重试（最多 3 次，退避策略：2s / 4s / 8s）。
  * 全部重试失败后由 {@link #recover} 方法将文档标记为 FAILED。
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 @Service

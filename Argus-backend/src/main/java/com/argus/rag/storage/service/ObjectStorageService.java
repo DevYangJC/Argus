@@ -10,7 +10,7 @@ import java.util.List;
  * 接口设计遵循「存储桶（Bucket）+ 对象键（ObjectKey）」的扁平命名模型，
  * 适配绝大多数对象存储产品。
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @see MinioStorageService         基于 MinIO 的生产级实现
  * @see MissingObjectStorageService 未配置存储时的降级占位实现
  */

@@ -17,7 +17,7 @@ import java.io.InputStream;
  * <p>解析器只负责将特定格式的文档转为纯文本，不涉及文本清洗、切片等后续处理。
  * 编码检测、Markdown 语法剥离等辅助逻辑应委托给独立的工具类。</p>
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 public interface DocumentParser {

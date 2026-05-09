@@ -13,7 +13,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
  * 使用 {@link TransactionalEventListener} 的 AFTER_COMMIT 阶段确保只有在
  * 数据库事务成功提交后才触发 ETL。
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 @Component

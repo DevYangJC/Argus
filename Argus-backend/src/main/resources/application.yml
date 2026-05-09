@@ -4,7 +4,7 @@ spring:
 
 # MyBatis-Plus 配置
 mybatis-plus:
-  mapper-locations: classpath*:/mappers/**/*.xml, classpath*:/document/*.xml, classpath*:/ingestion/*.xml
+  mapper-locations: classpath*:/mappers/**/*.xml
   type-aliases-package: com.argus.rag
   configuration:
     map-underscore-to-camel-case: true

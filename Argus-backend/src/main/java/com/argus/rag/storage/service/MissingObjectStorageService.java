@@ -25,7 +25,7 @@ import java.util.List;
  * <p>
  * <b>注入条件：</b>当 Spring 容器中不存在任何 {@link ObjectStorageService} 实现时自动注入。
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @see ObjectStorageService  服务契约接口
  * @see MinioStorageService   正常配置时的生产级 MinIO 实现
  */

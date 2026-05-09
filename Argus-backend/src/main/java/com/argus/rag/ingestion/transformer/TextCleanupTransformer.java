@@ -11,7 +11,7 @@ import java.util.stream.Collectors;
 /**
  * 清洗原始文本中的噪声（控制字符、多余空白行等），保留代码块格式不变。
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 public class TextCleanupTransformer implements DocumentTransformer {

@@ -26,7 +26,7 @@ import java.io.InputStream;
  * （如 {@link IOException}），解析器统一包装为包含 "PDF 文档解析失败" 消息的
  * {@link com.argus.rag.common.exception.BusinessException}。</p>
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 public class PdfDocumentParser implements DocumentParser {

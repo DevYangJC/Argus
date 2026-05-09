@@ -43,7 +43,7 @@ import java.util.List;
  * <p>任何阶段失败都会中断流水线并抛出相应的业务异常，
  * 不会静默吞掉错误，确保问题可追溯。</p>
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 @Slf4j

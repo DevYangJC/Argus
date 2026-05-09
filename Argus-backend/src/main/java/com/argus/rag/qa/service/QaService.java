@@ -1,17 +1,30 @@
-package com.dong.ddrag.qa.service;
+package com.argus.rag.qa.service;
 
-import com.dong.ddrag.groupmembership.service.GroupMembershipService;
-import com.dong.ddrag.qa.model.dto.AskQuestionRequest;
-import com.dong.ddrag.qa.model.vo.AskQuestionResponse;
+import com.argus.rag.groupmembership.service.GroupMembershipService;
+import com.argus.rag.qa.model.dto.AskQuestionRequest;
+import com.argus.rag.qa.model.vo.AskQuestionResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Service;
 
+/**
+ * 知识问答入口服务。
+ * <p>
+ * 负责协调权限校验和问答流程：
+ * 先校验用户对目标群组的读取权限，再委托 {@link QaChatService} 执行实际的检索和回答生成。
+ * </p>
+ */
 @Service
 public class QaService {
 
     private final GroupMembershipService groupMembershipService;
     private final QaChatService qaChatService;
 
+    /**
+     * 构造函数。
+     *
+     * @param groupMembershipService 群组成员关系服务，用于校验用户权限
+     * @param qaChatService          问答对话服务，执行实际的检索和大模型问答
+     */
     public QaService(
             GroupMembershipService groupMembershipService,
             QaChatService qaChatService
@@ -20,9 +33,20 @@ public class QaService {
         this.qaChatService = qaChatService;
     }
 
+    /**
+     * 处理用户提问请求。
+     * <p>
+     * 1. 校验当前用户对目标群组的读取权限（非成员将抛出异常）。<br>
+     * 2. 委托 {@link QaChatService} 执行检索和回答生成。
+     * </p>
+     *
+     * @param request            HTTP 请求对象，用于提取用户身份
+     * @param askQuestionRequest 问答请求 DTO
+     * @return 问答响应
+     */
     public AskQuestionResponse ask(HttpServletRequest request, AskQuestionRequest askQuestionRequest) {
         Long groupId = askQuestionRequest.getGroupId();
-        groupMembershipService.requireGroupReadable(request, groupId);
+        groupMembershipService.requireGroupReadable( groupId);
         return qaChatService.ask(groupId, askQuestionRequest.getQuestion());
     }
 }

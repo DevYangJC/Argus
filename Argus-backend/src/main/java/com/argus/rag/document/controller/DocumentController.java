@@ -34,7 +34,7 @@ import java.util.List;
  *
  * <p>所有接口需要用户认证，并对群组成员/管理员做权限校验。
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 @RestController

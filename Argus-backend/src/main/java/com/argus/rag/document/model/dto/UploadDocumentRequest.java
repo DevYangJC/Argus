@@ -10,7 +10,7 @@ import org.springframework.web.multipart.MultipartFile;
  * 无需先初始化上传会话。
  * </p>
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 @Data

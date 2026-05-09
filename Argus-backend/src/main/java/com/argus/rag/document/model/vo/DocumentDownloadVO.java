@@ -11,7 +11,7 @@ import java.io.InputStream;
  * 调用方需要在使用完毕后关闭 inputStream。
  * </p>
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 @Data

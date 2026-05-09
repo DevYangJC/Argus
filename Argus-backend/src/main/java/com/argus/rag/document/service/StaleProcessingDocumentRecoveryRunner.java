@@ -23,7 +23,7 @@ import java.time.LocalDateTime;
  * <p>通过配置项 {@code document.ingestion.processing-timeout-minutes}（默认 30 分钟）
  * 可以控制将多长时间的 PROCESSING 文档视为"遗留"。
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 @Component

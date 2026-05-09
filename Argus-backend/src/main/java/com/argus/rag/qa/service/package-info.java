@@ -1,4 +1,8 @@
 /**
- * qa 领域服务骨架。
+ * 知识问答服务层。
+ * <p>
+ * 提供基于 RAG（检索增强生成）的知识库问答服务，
+ * 包含查询规划、文档检索、大模型对话和回答解析等核心业务逻辑。
+ * </p>
  */
-package com.dong.ddrag.qa.service;
+package com.argus.rag.qa.service;

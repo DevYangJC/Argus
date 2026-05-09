@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 /**
  * 索引任务实体，映射 {@code ingestion_jobs} 表。
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 @Data

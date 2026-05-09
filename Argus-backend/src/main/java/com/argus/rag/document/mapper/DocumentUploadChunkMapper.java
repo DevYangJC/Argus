@@ -14,7 +14,7 @@ import java.util.List;
  * 和按上传会话查询已上传分片列表。通用 insert 由 BaseMapper 提供。
  * </p>
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 @Mapper

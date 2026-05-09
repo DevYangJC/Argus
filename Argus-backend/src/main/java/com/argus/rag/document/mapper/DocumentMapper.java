@@ -17,7 +17,7 @@ import java.util.List;
  * 软删除和批量状态回收等功能。
  * </p>
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 @Mapper

@@ -8,7 +8,7 @@ package com.argus.rag.document.service;
  *
  * @param documentId 新创建的文档 ID
  * @param groupId    文档所属群组 ID
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 public record DocumentIngestionRequestedEvent(

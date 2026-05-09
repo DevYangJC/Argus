@@ -6,7 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 /**
  * 文档分块配置属性，绑定前缀 {@code ingestion.chunking}。
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 @ConfigurationProperties(prefix = "ingestion.chunking")

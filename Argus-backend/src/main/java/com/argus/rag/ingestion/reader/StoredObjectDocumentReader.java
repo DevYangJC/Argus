@@ -29,7 +29,7 @@ import java.util.Map;
  *
  * <p>source 字段使用 {@code minio://bucket/objectKey} 格式标识文档来源。
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 public class StoredObjectDocumentReader implements DocumentReader {

@@ -39,7 +39,7 @@ import java.util.UUID;
  * 内部协调对象存储、向量数据库、Elasticsearch 等外部服务。
  * 上传失败时会自动补偿清理已上传的对象存储文件和外部索引。
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 @Service

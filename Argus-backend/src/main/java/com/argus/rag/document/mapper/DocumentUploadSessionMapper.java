@@ -12,7 +12,7 @@ import org.apache.ibatis.annotations.Param;
  * 查询和复用判断等功能。通用 insert 由 BaseMapper 提供。
  * </p>
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 @Mapper

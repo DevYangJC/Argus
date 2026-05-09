@@ -9,7 +9,7 @@ import org.springframework.web.multipart.MultipartFile;
  * 以及分片文件内容本身。
  * </p>
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 public record UploadChunkRequest(

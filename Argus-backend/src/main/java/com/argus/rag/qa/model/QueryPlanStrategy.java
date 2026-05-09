@@ -1,7 +1,20 @@
-package com.dong.ddrag.qa.model;
+package com.argus.rag.qa.model;
 
+/**
+ * 查询规划策略枚举。
+ * <p>
+ * 由大模型根据用户问题分析决定采用哪种检索策略：
+ * 直接检索、重写检索或分解检索。
+ * </p>
+ */
 public enum QueryPlanStrategy {
+
+    /** 直接检索：用户问题足够清晰，无需改写，直接使用原始问题进行检索 */
     DIRECT,
+
+    /** 重写检索：将原始问题改写为更适合检索的形式，同时保留原始问题作为检索语句之一 */
     REWRITE,
+
+    /** 分解检索：将复杂问题拆分为多个子问题，分别检索后合并结果 */
     DECOMPOSE
 }

@@ -3,7 +3,7 @@ package com.argus.rag.ingestion.service;
 /**
  * 文档摄取处理器，定义将文档内容切分并写入向量库的核心契约。
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 public interface DocumentIngestionProcessor {

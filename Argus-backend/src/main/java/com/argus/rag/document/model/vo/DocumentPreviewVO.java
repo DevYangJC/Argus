@@ -8,7 +8,7 @@ import lombok.Data;
  * 返回指定文档的可预览文本内容，用于前端文档详情页或预览弹窗展示。
  * </p>
  *
- * @author DD-RAG Team
+ * @author Argus-RAG Team
  * @since 1.0.0
  */
 @Data
