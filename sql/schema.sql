@@ -450,3 +450,94 @@ CREATE INDEX IF NOT EXISTS idx_vector_embedding_hnsw
     ON vector_store
     USING hnsw (embedding vector_cosine_ops)
     WITH (m = 16, ef_construction = 200);
+
+
+-- ===================================================
+-- AI 助手模块（V4.0）
+-- ===================================================
+
+-- 助手会话表
+CREATE TABLE IF NOT EXISTS assistant_sessions (
+    id              BIGSERIAL       PRIMARY KEY,
+    user_id         BIGINT          NOT NULL,
+    title           VARCHAR(255)    NOT NULL DEFAULT '新会话',
+    status          VARCHAR(32)     NOT NULL DEFAULT 'ACTIVE',
+    last_message_at TIMESTAMP,
+    created_at      TIMESTAMP       NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMP       NOT NULL DEFAULT now(),
+
+    CONSTRAINT fk_assistant_session_user FOREIGN KEY (user_id) REFERENCES users (id)
+);
+
+COMMENT ON TABLE  assistant_sessions                IS 'AI 助手会话表';
+COMMENT ON COLUMN assistant_sessions.id             IS '会话主键';
+COMMENT ON COLUMN assistant_sessions.user_id        IS '所属用户 ID';
+COMMENT ON COLUMN assistant_sessions.title          IS '会话标题，默认"新会话"，首条消息自动重命名';
+COMMENT ON COLUMN assistant_sessions.status         IS '会话状态：ACTIVE | ARCHIVED | DELETED';
+COMMENT ON COLUMN assistant_sessions.last_message_at IS '最后消息时间，用于排序展示';
+COMMENT ON COLUMN assistant_sessions.created_at     IS '创建时间';
+COMMENT ON COLUMN assistant_sessions.updated_at     IS '更新时间';
+
+-- 索引：按用户+状态查询会话列表
+CREATE INDEX IF NOT EXISTS idx_sessions_user_status
+    ON assistant_sessions (user_id, status);
+
+
+-- 助手消息表
+CREATE TABLE IF NOT EXISTS assistant_messages (
+    id                  BIGSERIAL       PRIMARY KEY,
+    session_id          BIGINT          NOT NULL,
+    role                VARCHAR(16)     NOT NULL,
+    tool_mode           VARCHAR(32)     NOT NULL,
+    group_id            BIGINT,
+    content             TEXT            NOT NULL,
+    structured_payload  JSONB,
+    created_at          TIMESTAMP       NOT NULL DEFAULT now(),
+
+    CONSTRAINT fk_assistant_message_session FOREIGN KEY (session_id) REFERENCES assistant_sessions (id)
+);
+
+COMMENT ON TABLE  assistant_messages                   IS 'AI 助手消息表';
+COMMENT ON COLUMN assistant_messages.id                IS '消息主键';
+COMMENT ON COLUMN assistant_messages.session_id        IS '所属会话 ID';
+COMMENT ON COLUMN assistant_messages.role              IS '消息角色：USER | ASSISTANT | TOOL';
+COMMENT ON COLUMN assistant_messages.tool_mode         IS '消息产生时的工具模式：CHAT | KB_SEARCH';
+COMMENT ON COLUMN assistant_messages.group_id          IS '知识库组 ID，CHAT 模式下为 NULL';
+COMMENT ON COLUMN assistant_messages.content           IS '消息文本内容';
+COMMENT ON COLUMN assistant_messages.structured_payload IS '结构化负载数据（JSONB 格式），如工具调用结果';
+COMMENT ON COLUMN assistant_messages.created_at        IS '消息创建时间';
+
+-- 索引：按会话+时间查询消息（上下文加载 + 分页）
+CREATE INDEX IF NOT EXISTS idx_messages_session_created
+    ON assistant_messages (session_id, created_at);
+
+
+-- 助手会话上下文表（短期记忆存储）
+CREATE TABLE IF NOT EXISTS assistant_session_contexts (
+    session_id                          BIGINT      PRIMARY KEY,
+    session_memory                      TEXT,
+    compact_summary                     TEXT,
+    session_memory_base_message_id      BIGINT,
+    session_memory_range_end_message_id BIGINT,
+    compact_summary_base_message_id     BIGINT,
+    compact_summary_range_end_message_id BIGINT,
+    summary_text                        TEXT,
+    source_message_id                   BIGINT,
+    context_version                     BIGINT      NOT NULL DEFAULT 0,
+    updated_at                          TIMESTAMP   NOT NULL DEFAULT now(),
+
+    CONSTRAINT fk_session_context_session FOREIGN KEY (session_id) REFERENCES assistant_sessions (id)
+);
+
+COMMENT ON TABLE  assistant_session_contexts                             IS 'AI 助手会话上下文表（短期记忆存储）';
+COMMENT ON COLUMN assistant_session_contexts.session_id                  IS '会话 ID，一对一关联 assistant_sessions.id';
+COMMENT ON COLUMN assistant_session_contexts.session_memory              IS 'LLM 生成的增量会话记忆摘要';
+COMMENT ON COLUMN assistant_session_contexts.compact_summary             IS 'LLM 生成的紧凑摘要（更精炼的压缩）';
+COMMENT ON COLUMN assistant_session_contexts.session_memory_base_message_id      IS '会话记忆覆盖的起始消息 ID';
+COMMENT ON COLUMN assistant_session_contexts.session_memory_range_end_message_id IS '会话记忆覆盖的结束消息 ID';
+COMMENT ON COLUMN assistant_session_contexts.compact_summary_base_message_id     IS '紧凑摘要覆盖的起始消息 ID';
+COMMENT ON COLUMN assistant_session_contexts.compact_summary_range_end_message_id IS '紧凑摘要覆盖的结束消息 ID';
+COMMENT ON COLUMN assistant_session_contexts.summary_text                IS '会话摘要文本（早期消息的简明摘要）';
+COMMENT ON COLUMN assistant_session_contexts.source_message_id           IS '摘要覆盖的结束消息 ID';
+COMMENT ON COLUMN assistant_session_contexts.context_version             IS '乐观锁版本号，初始为 0，每次更新递增';
+COMMENT ON COLUMN assistant_session_contexts.updated_at                  IS '上下文最后更新时间';
