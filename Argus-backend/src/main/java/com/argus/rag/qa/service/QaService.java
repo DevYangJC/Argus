@@ -1,6 +1,6 @@
 package com.argus.rag.qa.service;
 
-import com.argus.rag.groupmembership.service.GroupMembershipService;
+import com.argus.rag.group.service.GroupMembershipService;
 import com.argus.rag.qa.model.dto.AskQuestionRequest;
 import com.argus.rag.qa.model.vo.AskQuestionResponse;
 import jakarta.servlet.http.HttpServletRequest;

@@ -10,7 +10,7 @@ import com.argus.rag.assistant.model.vo.chat.AssistantChatStreamEvent;
 import com.argus.rag.assistant.model.vo.message.AssistantMessageVO;
 import com.argus.rag.auth.CurrentUserService;
 import com.argus.rag.common.exception.BusinessException;
-import com.argus.rag.groupmembership.service.GroupMembershipService;
+import com.argus.rag.group.service.GroupMembershipService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Service;

@@ -6,10 +6,9 @@ import com.argus.rag.ingestion.model.entity.DocumentChunkEntity;
 import com.argus.rag.qa.model.EvidenceLevel;
 import com.argus.rag.qa.model.QueryPlanResult;
 import com.argus.rag.qa.service.QueryPlanningService;
-import com.argus.rag.retrieval.elasticsearch.ElasticsearchChunkIndexService;
-import com.argus.rag.retrieval.vectorstore.PgVectorRetrievalAdapter;
+import com.argus.rag.engine.elasticsearch.ElasticsearchChunkIndexService;
+import com.argus.rag.engine.pgvector.PgVectorRetrievalAdapter;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -110,9 +109,11 @@ public class HybridChunkRetrievalService {
         Long validGroupId = requirePositiveGroupId(groupId);
         String normalizedQuestion = requireQuestion(question);
         int validTopK = topK > 0 ? topK : 5;
+
         log.info("混合检索开始: groupId={}, topK={}, questionLength={}", validGroupId, validTopK, normalizedQuestion.length());
         QueryPlanResult queryPlan = queryPlanningService.plan(normalizedQuestion);
         log.info("查询规划完成: groupId={}, strategy={}, queries={}", validGroupId, queryPlan.strategy(), queryPlan.queries());
+
         Map<Long, RetrievalCandidate> candidates = new LinkedHashMap<>();
 
         for (String plannedQuery : queryPlan.queries()) {

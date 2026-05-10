@@ -52,6 +52,25 @@ public class UserQueryService {
         );
     }
 
+    /** 按 ID 查询单个用户，返回精简 record（供跨模块调用），不存在返回 null */
+    public UserRecord findById(Long userId) {
+        User user = userMapper.selectById(userId);
+        if (user == null) return null;
+        return new UserRecord(user.getId(), user.getUserCode(),
+                user.getDisplayName(), user.getSystemRole(),
+                user.getStatus(), Boolean.TRUE.equals(user.getMustChangePassword()));
+    }
+
+    /** 供跨模块查询的用户精简信息 */
+    public record UserRecord(
+            Long userId,
+            String userCode,
+            String displayName,
+            com.argus.rag.common.enums.SystemRole systemRole,
+            com.argus.rag.common.enums.UserStatus status,
+            boolean mustChangePassword
+    ) {}
+
     /** 将 User 实体转为管理端 VO */
     private static AdminUserItemResponse toAdminVo(User user) {
         return new AdminUserItemResponse(

@@ -3,7 +3,6 @@ package com.argus.rag.document.service;
 import com.argus.rag.common.enums.DocumentStatus;
 import com.argus.rag.document.mapper.DocumentMapper;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;

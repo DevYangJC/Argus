@@ -2,10 +2,8 @@ package com.argus.rag.assistant.agent;
 
 import com.argus.rag.assistant.model.vo.tool.KnowledgeBaseSearchToolResponse;
 import com.argus.rag.common.exception.BusinessException;
-import com.argus.rag.qa.model.vo.AskQuestionResponse;
-import com.argus.rag.qa.rag.ReadyChunkDocumentRetriever;
-import com.argus.rag.qa.rag.RetrievedEvidenceBundle;
-import com.argus.rag.qa.support.CitationAssembler;
+import com.argus.rag.qa.service.QaRetrievalService;
+import com.argus.rag.qa.service.QaRetrievalService.QaRetrievalResult;
 import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.tool.annotation.Tool;
@@ -31,15 +29,10 @@ public class AssistantKnowledgeBaseTool {
     private static final String INSUFFICIENT_CODE = "INSUFFICIENT_EVIDENCE";
     private static final String INSUFFICIENT_MESSAGE = "检索到的有效证据不足，暂不回答。";
 
-    private final ReadyChunkDocumentRetriever readyChunkDocumentRetriever;
-    private final CitationAssembler citationAssembler;
+    private final QaRetrievalService qaRetrievalService;
 
-    public AssistantKnowledgeBaseTool(
-            ReadyChunkDocumentRetriever readyChunkDocumentRetriever,
-            CitationAssembler citationAssembler
-    ) {
-        this.readyChunkDocumentRetriever = readyChunkDocumentRetriever;
-        this.citationAssembler = citationAssembler;
+    public AssistantKnowledgeBaseTool(QaRetrievalService qaRetrievalService) {
+        this.qaRetrievalService = qaRetrievalService;
     }
 
     /**
@@ -75,30 +68,29 @@ public class AssistantKnowledgeBaseTool {
             );
         }
         String safeQuery = requireQuery(query);
-        RetrievedEvidenceBundle evidenceBundle = readyChunkDocumentRetriever.retrieveEvidence(groupId, safeQuery);
-        List<Document> documents = evidenceBundle.documents();
+        QaRetrievalResult result = qaRetrievalService.retrieveEvidence(groupId, safeQuery);
+        List<Document> documents = result.bundle().documents();
         if (documents == null || documents.isEmpty()) {
             resultHolder.recordCitations(List.of());
             return new KnowledgeBaseSearchToolResponse(
                     false,
                     INSUFFICIENT_CODE,
                     INSUFFICIENT_MESSAGE,
-                    evidenceBundle.evidenceLevel() == null ? null : evidenceBundle.evidenceLevel().name(),
-                    evidenceBundle.evidenceGuidance(),
+                    result.bundle().evidenceLevel() == null ? null : result.bundle().evidenceLevel().name(),
+                    result.bundle().evidenceGuidance(),
                     List.of(),
                     List.of()
             );
         }
-        List<AskQuestionResponse.Citation> citations = citationAssembler.assembleDocuments(documents);
-        resultHolder.recordCitations(citations);
+        resultHolder.recordCitations(result.citations());
         return new KnowledgeBaseSearchToolResponse(
                 true,
                 null,
                 null,
-                evidenceBundle.evidenceLevel() == null ? null : evidenceBundle.evidenceLevel().name(),
-                evidenceBundle.evidenceGuidance(),
+                result.bundle().evidenceLevel() == null ? null : result.bundle().evidenceLevel().name(),
+                result.bundle().evidenceGuidance(),
                 documents.stream().map(this::toEvidence).toList(),
-                citations
+                result.citations()
         );
     }
 

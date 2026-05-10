@@ -1,15 +1,15 @@
 package com.argus.rag.ingestion.config;
 
 import com.argus.rag.document.mapper.DocumentMapper;
-import com.argus.rag.ingestion.chunk.ChunkService;
-import com.argus.rag.ingestion.parser.factory.DocumentParserFactory;
+import com.argus.rag.ingestion.service.pipeline.ChunkService;
+import com.argus.rag.ingestion.service.pipeline.parser.DocumentParserFactory;
 import com.argus.rag.ingestion.service.DocumentIngestionProcessor;
 import com.argus.rag.ingestion.service.EtlDocumentIngestionProcessor;
-import com.argus.rag.ingestion.transformer.StructureAwareChunkTransformer;
-import com.argus.rag.ingestion.transformer.TextCleanupTransformer;
+import com.argus.rag.ingestion.service.pipeline.transformer.StructureAwareChunkTransformer;
+import com.argus.rag.ingestion.service.pipeline.transformer.TextCleanupTransformer;
 import com.argus.rag.ingestion.vector.VectorIngestionService;
-import com.argus.rag.storage.service.ObjectStorageService;
-import com.argus.rag.ingestion.transformer.ChunkingProperties;
+import com.argus.rag.engine.storage.ObjectStorageService;
+import com.argus.rag.ingestion.service.pipeline.transformer.ChunkingProperties;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;

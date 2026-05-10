@@ -1,33 +1,32 @@
 package com.argus.rag.auth;
 
-import com.argus.rag.auth.security.JwtAuthenticationFilter;
-import com.argus.rag.auth.security.UserContext;
+import com.argus.rag.common.security.AuthenticatedUser;
+import com.argus.rag.common.security.UserContext;
 import com.argus.rag.common.enums.SystemRole;
 import com.argus.rag.common.enums.UserStatus;
 import com.argus.rag.common.exception.BusinessException;
 import com.argus.rag.common.exception.ForbiddenException;
 import com.argus.rag.common.exception.UnauthorizedException;
-import com.argus.rag.user.mapper.UserMapper;
-import com.argus.rag.user.model.entity.User;
+import com.argus.rag.user.service.UserQueryService;
 import org.springframework.stereotype.Service;
 
 /**
  * 当前用户服务，通过 {@link UserContext} 获取当前请求用户。
  * <p>
- * 依赖 {@link JwtAuthenticationFilter} 在请求进入时设置 {@link UserContext}。
+ * 依赖 JwtAuthenticationFilter 在请求进入时设置 {@link UserContext}。
  */
 @Service
 public class CurrentUserService {
 
-    private final UserMapper userMapper;
+    private final UserQueryService userQueryService;
 
-    public CurrentUserService(UserMapper userMapper) {
-        this.userMapper = userMapper;
+    public CurrentUserService(UserQueryService userQueryService) {
+        this.userQueryService = userQueryService;
     }
 
     /** 获取当前登录用户，未登录抛出 401 */
     public CurrentUser getRequiredCurrentUser() {
-        JwtAuthenticationFilter.AuthenticatedUser authenticatedUser = UserContext.get();
+        AuthenticatedUser authenticatedUser = UserContext.get();
         if (authenticatedUser != null) {
             return loadUserById(authenticatedUser.userId());
         }
@@ -54,19 +53,19 @@ public class CurrentUserService {
 
     /** 从数据库加载用户并校验状态 */
     private CurrentUser loadUserById(Long userId) {
-        User user = userMapper.selectById(userId);
+        UserQueryService.UserRecord user = userQueryService.findById(userId);
         if (user == null) {
             throw new BusinessException("当前用户不存在");
         }
-        if (user.getStatus() == UserStatus.DISABLED) {
+        if (user.status() == UserStatus.DISABLED) {
             throw new BusinessException("账号已被禁用");
         }
         return new CurrentUser(
-                user.getId(),
-                user.getUserCode(),
-                user.getDisplayName(),
-                user.getSystemRole(),
-                Boolean.TRUE.equals(user.getMustChangePassword())
+                user.userId(),
+                user.userCode(),
+                user.displayName(),
+                user.systemRole(),
+                user.mustChangePassword()
         );
     }
 

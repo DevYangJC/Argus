@@ -5,7 +5,6 @@ import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
-import org.springdoc.core.customizers.GlobalOpenApiCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -18,7 +17,6 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class OpenApiConfiguration {
 
-
     @Bean
     OpenAPI argusOpenApi() {
         return new OpenAPI()
@@ -27,12 +25,4 @@ public class OpenApiConfiguration {
                         .description("Argus 知识库平台接口文档")
                         .version("1.0.0"));
     }
-
-    /** 逐个操作注入 SecurityRequirement，确保 Knife4j 每个接口都随请求带 Authorization */
-//    @Bean
-//    GlobalOpenApiCustomizer applySecurityToAllOperations() {
-//        return openApi -> openApi.getPaths().values().forEach(pathItem ->
-//                pathItem.readOperations().forEach(operation ->
-//                        operation.addSecurityItem(new SecurityRequirement().addList(SCHEME_NAME))));
-//    }
 }

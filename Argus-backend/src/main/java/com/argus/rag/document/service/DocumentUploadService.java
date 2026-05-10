@@ -1,23 +1,24 @@
 package com.argus.rag.document.service;
 
 import com.argus.rag.auth.CurrentUserService;
+import com.argus.rag.common.enums.DocumentStatus;
 import com.argus.rag.common.exception.BusinessException;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.argus.rag.document.mapper.DocumentMapper;
 import com.argus.rag.document.mapper.DocumentUploadChunkMapper;
 import com.argus.rag.document.mapper.DocumentUploadSessionMapper;
 import com.argus.rag.document.model.dto.UploadChunkRequest;
+import com.argus.rag.document.model.dto.UploadDocumentRequest;
 import com.argus.rag.document.model.dto.UploadInitRequest;
 import com.argus.rag.document.model.entity.DocumentEntity;
 import com.argus.rag.document.model.entity.DocumentUploadChunkEntity;
 import com.argus.rag.document.model.entity.DocumentUploadSessionEntity;
 import com.argus.rag.document.model.vo.UploadInitResponse;
 import com.argus.rag.document.model.vo.UploadStatusResponse;
-import com.argus.rag.groupmembership.service.GroupMembershipService;
-import com.argus.rag.storage.service.ObjectStorageService;
+import com.argus.rag.group.service.GroupMembershipService;
+import com.argus.rag.engine.storage.ObjectStorageService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -73,6 +74,8 @@ public class DocumentUploadService {
     private static final String UPLOAD_STATUS_COMPLETED = "COMPLETED";
     /** 分片默认 MIME 类型 */
     private static final String OCTET_STREAM = "application/octet-stream";
+    /** 直接上传最大文件大小：10MB */
+    private static final long MAX_DIRECT_FILE_SIZE = 10L * 1024 * 1024;
 
     /** 文档数据访问 */
     private final DocumentMapper documentMapper;
@@ -82,35 +85,33 @@ public class DocumentUploadService {
     private final DocumentUploadChunkMapper documentUploadChunkMapper;
     /** 群组成员权限服务 */
     private final GroupMembershipService groupMembershipService;
-    /** 文档核心服务 */
-    private final DocumentService documentService;
     /** 对象存储服务 */
     private final ObjectStorageService objectStorageService;
+    /** 向量导入服务 */
+    private final com.argus.rag.ingestion.vector.VectorIngestionService vectorIngestionService;
+    /** Elasticsearch chunk 索引服务 */
+    private final com.argus.rag.engine.elasticsearch.ElasticsearchChunkIndexService elasticsearchChunkIndexService;
+    /** Spring 事件发布器 */
+    private final org.springframework.context.ApplicationEventPublisher applicationEventPublisher;
 
-    /**
-     * 构造分片上传服务，注入所有依赖。
-     *
-     * @param documentMapper                文档数据访问层
-     * @param documentUploadSessionMapper   上传会话数据访问层
-     * @param documentUploadChunkMapper     上传分片数据访问层
-     * @param groupMembershipService        群组成员权限服务
-     * @param documentService               文档核心服务
-     * @param objectStorageService          对象存储服务
-     */
     public DocumentUploadService(
             DocumentMapper documentMapper,
             DocumentUploadSessionMapper documentUploadSessionMapper,
             DocumentUploadChunkMapper documentUploadChunkMapper,
             GroupMembershipService groupMembershipService,
-            DocumentService documentService,
-            ObjectStorageService objectStorageService
+            ObjectStorageService objectStorageService,
+            com.argus.rag.ingestion.vector.VectorIngestionService vectorIngestionService,
+            com.argus.rag.engine.elasticsearch.ElasticsearchChunkIndexService elasticsearchChunkIndexService,
+            org.springframework.context.ApplicationEventPublisher applicationEventPublisher
     ) {
         this.documentMapper = documentMapper;
         this.documentUploadSessionMapper = documentUploadSessionMapper;
         this.documentUploadChunkMapper = documentUploadChunkMapper;
         this.groupMembershipService = groupMembershipService;
-        this.documentService = documentService;
         this.objectStorageService = objectStorageService;
+        this.vectorIngestionService = vectorIngestionService;
+        this.elasticsearchChunkIndexService = elasticsearchChunkIndexService;
+        this.applicationEventPublisher = applicationEventPublisher;
     }
 
     /**
@@ -138,7 +139,7 @@ public class DocumentUploadService {
         if (existingDocument != null && "READY".equals(existingDocument.getStatus())) {
             log.info("分片上传-秒传复用: groupId={}, userId={}, fileName={}, fileHash={}, reusedDocumentId={}",
                     groupId, currentUser.userId(), normalizedRequest.fileName(), normalizedRequest.fileHash(), existingDocument.getId());
-            Long documentId = documentService.createInstantUploadedDocument(
+            Long documentId = createInstantUploadedDocument(
                     groupId,
                     currentUser.userId(),
                     existingDocument,
@@ -277,7 +278,7 @@ public class DocumentUploadService {
                     chunks.stream().map(DocumentUploadChunkEntity::getStorageObjectKey).toList(),
                     session.getContentType()
             );
-            Long documentId = documentService.finalizeUploadedDocument(
+            Long documentId = finalizeUploadedDocument(
                     session.getGroupId(),
                     session.getUploaderUserId(),
                     session.getFileName(),
@@ -635,6 +636,210 @@ public class DocumentUploadService {
             String fileHash,
             Long chunkSize,
             Integer chunkCount
+    ) {
+    }
+
+    // ────────────────────────────── 直接上传 ──────────────────────────────
+
+    /** 直接上传文档（小文件模式），参数已由 Controller 提取 userId */
+    @Transactional
+    public Long uploadDocument(Long userId, UploadDocumentRequest uploadRequest) {
+        Long groupId = requireGroupId(uploadRequest.getGroupId());
+        groupMembershipService.requireGroupOwner(groupId);
+        MultipartFile file = requireValidFile(uploadRequest.getFile());
+        String fileName = extractDirectFileName(file);
+        String fileExt = extractFileExt(fileName);
+        String bucket = objectStorageService.getDefaultBucket();
+        String objectKey = buildDirectObjectKey(groupId, userId, fileExt);
+        DocumentEntity document = null;
+        log.info("开始上传文档: groupId={}, userId={}, fileName={}, size={}, objectKey={}",
+                groupId, userId, fileName, file.getSize(), objectKey);
+        uploadDirectFile(bucket, objectKey, file);
+        log.info("对象存储上传完成: groupId={}, objectKey={}", groupId, objectKey);
+        try {
+            document = persistAndFinalizeUploadedDocument(new FinalizedUploadCommand(
+                    groupId, userId, fileName, fileExt,
+                    normalizeContentType(file.getContentType()), file.getSize(),
+                    null, bucket, objectKey));
+            return document.getId();
+        } catch (RuntimeException exception) {
+            log.error("文档上传链路失败: groupId={}, objectKey={}, reason={}",
+                    groupId, objectKey, exception.getMessage(), exception);
+            compensateExternalIndexes(document);
+            compensateUploadedDirectObject(bucket, objectKey, exception);
+            throw exception;
+        }
+    }
+
+    /** 通过复用已有文档创建新文档记录（秒传） */
+    @Transactional
+    public Long createInstantUploadedDocument(Long groupId, Long userId,
+                                               DocumentEntity existingDocument, String fileName) {
+        if (existingDocument == null) {
+            throw new BusinessException("复用文档不存在");
+        }
+        DocumentEntity document = persistAndFinalizeUploadedDocument(new FinalizedUploadCommand(
+                requireGroupId(groupId),
+                requirePositiveUserId(userId),
+                validateReusableFileName(fileName),
+                requireText(existingDocument.getFileExt(), "文件扩展名非法"),
+                normalizeContentType(existingDocument.getContentType()),
+                requirePositiveFileSize(existingDocument.getFileSize()),
+                existingDocument.getFileHash(),
+                requireText(existingDocument.getStorageBucket(), "对象存储桶非法"),
+                requireText(existingDocument.getStorageObjectKey(), "对象存储路径非法")
+        ));
+        return document.getId();
+    }
+
+    /** 完成分片上传后的文档持久化 */
+    @Transactional
+    public Long finalizeUploadedDocument(Long groupId, Long userId, String fileName,
+                                          String fileExt, String contentType, Long fileSize,
+                                          String fileHash, String bucket, String objectKey) {
+        DocumentEntity document = persistAndFinalizeUploadedDocument(new FinalizedUploadCommand(
+                requireGroupId(groupId),
+                requirePositiveUserId(userId),
+                sanitizeFileName(fileName),
+                requireText(fileExt, "文件扩展名非法"),
+                normalizeContentType(contentType),
+                requirePositiveFileSize(fileSize),
+                fileHash,
+                requireText(bucket, "对象存储桶非法"),
+                requireText(objectKey, "对象存储路径非法")
+        ));
+        return document.getId();
+    }
+
+    // ──────────────────────── 直接上传辅助方法 ────────────────────────
+
+    private MultipartFile requireValidFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException("上传文件不能为空");
+        }
+        if (file.getSize() > MAX_DIRECT_FILE_SIZE) {
+            throw new BusinessException("上传文件超过大小限制");
+        }
+        return file;
+    }
+
+    private String extractDirectFileName(MultipartFile file) {
+        String originalFileName = file.getOriginalFilename();
+        return sanitizeFileName(originalFileName);
+    }
+
+    private String buildDirectObjectKey(Long groupId, Long userId, String fileExt) {
+        String fileId = UUID.randomUUID().toString().replace("-", "");
+        return "groups/%d/users/%d/%s.%s".formatted(groupId, userId, fileId, fileExt);
+    }
+
+    private void uploadDirectFile(String bucket, String objectKey, MultipartFile file) {
+        try (java.io.InputStream inputStream = file.getInputStream()) {
+            objectStorageService.putObject(bucket, objectKey, inputStream, file.getSize(),
+                    normalizeContentType(file.getContentType()));
+        } catch (java.io.IOException exception) {
+            throw new BusinessException("读取上传文件失败");
+        } catch (BusinessException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            throw new BusinessException("文档上传失败");
+        }
+    }
+
+    private void compensateUploadedDirectObject(String bucket, String objectKey,
+                                                 RuntimeException originalException) {
+        try {
+            objectStorageService.deleteObject(bucket, objectKey);
+        } catch (RuntimeException compensationException) {
+            originalException.addSuppressed(compensationException);
+            log.warn("补偿清理对象存储失败: bucket={}, objectKey={}, reason={}",
+                    bucket, objectKey, compensationException.getMessage());
+        }
+    }
+
+    private void compensateExternalIndexes(DocumentEntity document) {
+        if (document == null || document.getId() == null) return;
+        try {
+            vectorIngestionService.deleteDocumentVectors(document.getId());
+        } catch (RuntimeException exception) {
+            log.warn("文档失败补偿时删除向量失败: documentId={}, reason={}",
+                    document.getId(), exception.getMessage());
+        }
+        try {
+            elasticsearchChunkIndexService.deleteDocumentChunks(document.getId());
+        } catch (RuntimeException exception) {
+            log.warn("文档失败补偿时删除 ES 索引失败: documentId={}, reason={}",
+                    document.getId(), exception.getMessage());
+        }
+    }
+
+    private DocumentEntity persistAndFinalizeUploadedDocument(FinalizedUploadCommand command) {
+        DocumentEntity document = buildDocument(command);
+        documentMapper.insert(document);
+        log.info("文档元数据入库完成: documentId={}, groupId={}, status={}",
+                document.getId(), command.groupId(), document.getStatus());
+        applicationEventPublisher.publishEvent(
+                new DocumentIngestionRequestedEvent(document.getId(), command.groupId()));
+        log.info("已发布文档异步ETL事件: documentId={}, groupId={}",
+                document.getId(), command.groupId());
+        return document;
+    }
+
+    private DocumentEntity buildDocument(FinalizedUploadCommand command) {
+        LocalDateTime now = LocalDateTime.now();
+        DocumentEntity document = new DocumentEntity();
+        document.setGroupId(command.groupId());
+        document.setUploaderUserId(command.userId());
+        document.setFileName(command.fileName());
+        document.setFileExt(command.fileExt());
+        document.setContentType(command.contentType());
+        document.setFileSize(command.fileSize());
+        document.setFileHash(command.fileHash());
+        document.setStorageBucket(command.bucket());
+        document.setStorageObjectKey(command.objectKey());
+        document.setStatus(DocumentStatus.PROCESSING.name());
+        document.setDeleted(false);
+        document.setUploadedAt(now);
+        document.setCreatedAt(now);
+        document.setUpdatedAt(now);
+        return document;
+    }
+
+    private Long requirePositiveUserId(Long userId) {
+        if (userId == null || userId <= 0) {
+            throw new BusinessException("userId 非法");
+        }
+        return userId;
+    }
+
+    private long requirePositiveFileSize(Long fileSize) {
+        if (fileSize == null || fileSize <= 0) {
+            throw new BusinessException("fileSize 非法");
+        }
+        return fileSize;
+    }
+
+    private String validateReusableFileName(String fileName) {
+        return sanitizeFileName(fileName);
+    }
+
+    private String requireText(String value, String message) {
+        if (!StringUtils.hasText(value)) {
+            throw new BusinessException(message);
+        }
+        return value.trim();
+    }
+
+    record FinalizedUploadCommand(
+            Long groupId,
+            Long userId,
+            String fileName,
+            String fileExt,
+            String contentType,
+            Long fileSize,
+            String fileHash,
+            String bucket,
+            String objectKey
     ) {
     }
 }

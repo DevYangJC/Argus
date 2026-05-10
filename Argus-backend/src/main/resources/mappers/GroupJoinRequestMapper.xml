@@ -2,9 +2,9 @@
 <!DOCTYPE mapper
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.argus.rag.groupmembership.mapper.GroupJoinRequestMapper">
+<mapper namespace="com.argus.rag.group.mapper.GroupJoinRequestMapper">
 
-    <select id="selectActiveGroupByCode" resultType="com.argus.rag.groupmembership.model.entity.Group">
+    <select id="selectActiveGroupByCode" resultType="com.argus.rag.group.model.entity.Group">
         select id, group_code, group_name
         from groups
         where group_code = #{groupCode}
@@ -54,7 +54,7 @@
         returning id
     </select>
 
-    <select id="selectMyJoinRequests" resultType="com.argus.rag.groupmembership.model.vo.MyJoinRequestResponse">
+    <select id="selectMyJoinRequests" resultType="com.argus.rag.group.model.vo.MyJoinRequestResponse">
         select gjr.id as "requestId",
                gjr.group_id as "groupId",
                g.group_code as "groupCode",
@@ -69,7 +69,7 @@
         order by gjr.created_at desc, gjr.id desc
     </select>
 
-    <select id="selectPendingJoinRequestsByGroupId" resultType="com.argus.rag.groupmembership.model.vo.OwnerJoinRequestResponse">
+    <select id="selectPendingJoinRequestsByGroupId" resultType="com.argus.rag.group.model.vo.OwnerJoinRequestResponse">
         select gjr.id as "requestId",
                gjr.group_id as "groupId",
                u.id as "applicantUserId",
@@ -86,7 +86,7 @@
         order by gjr.created_at, gjr.id
     </select>
 
-    <select id="selectJoinRequestById" resultType="com.argus.rag.groupmembership.model.entity.GroupJoinRequest">
+    <select id="selectJoinRequestById" resultType="com.argus.rag.group.model.entity.GroupJoinRequest">
         select gjr.id, gjr.group_id, gjr.applicant_user_id, gjr.status
         from group_join_requests gjr
         inner join groups g on g.id = gjr.group_id

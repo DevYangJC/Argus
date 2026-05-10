@@ -1,8 +1,9 @@
 package com.argus.rag.auth.security;
 
 import com.argus.rag.common.api.ApiResponse;
-import com.argus.rag.common.enums.SystemRole;
 import com.argus.rag.common.exception.BusinessException;
+import com.argus.rag.common.security.AuthenticatedUser;
+import com.argus.rag.common.security.UserContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -102,13 +103,4 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         objectMapper.writeValue(response.getWriter(), new ApiResponse<>(false, null, message));
     }
 
-    /** JWT 解析成功后放入 request attribute 的用户信息 */
-    public record AuthenticatedUser(
-            Long userId,
-            String userCode,
-            String displayName,
-            SystemRole systemRole,
-            boolean mustChangePassword
-    ) {
-    }
 }
