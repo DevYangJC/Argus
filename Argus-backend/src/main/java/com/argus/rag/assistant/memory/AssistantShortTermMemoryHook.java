@@ -170,10 +170,15 @@ public class AssistantShortTermMemoryHook extends MessagesModelHook {
                 assistantConversationService.loadConversationContext(userId, sessionId, RECENT_MESSAGE_LIMIT);
         // compact summary 和 session memory 被降级成系统消息注入，
         // 目的是让模型先看到压缩后的会话状态，再看最近几轮原始消息。
+        // 1. 紧凑摘要（作为系统消息）
         addSystemMemory(messages, "compact summary", conversationContext.compactSummary());
+        // 2. 会话记忆（作为系统消息）
         addSystemMemory(messages, "session memory", conversationContext.sessionMemory());
+        // 3. 最近的对话历史
         appendRecentMessages(messages, conversationContext.recentMessages(), currentQuestion);
+        // 4. 运行时工具消息（Agent 图执行过程中产生的 ToolResponseMessage）
         appendRuntimeToolMessages(messages, runtimeMessages);
+        // 5. 当前用户问题
         messages.add(new UserMessage(currentQuestion));
         return messages;
     }
