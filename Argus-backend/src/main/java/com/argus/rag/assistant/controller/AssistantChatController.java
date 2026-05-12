@@ -5,6 +5,8 @@ import com.argus.rag.assistant.model.vo.chat.AssistantChatResponse;
 import com.argus.rag.assistant.model.vo.chat.AssistantChatStreamEvent;
 import com.argus.rag.assistant.service.AssistantService;
 import com.argus.rag.common.api.ApiResponse;
+import com.argus.rag.common.security.AuthenticatedUser;
+import com.argus.rag.common.security.UserContext;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
@@ -72,6 +74,9 @@ public class AssistantChatController {
             @Valid @RequestBody AssistantChatRequest requestBody,
             HttpServletRequest request
     ) {
+        // SSE 工作线程池与请求线程是不同线程，UserContext 作为 ThreadLocal
+        // 不会自动传递。此处在请求线程里先抓取已认证用户，交给工作线程重建。
+        AuthenticatedUser authenticatedUser = UserContext.get();
         // 流式对话入口只负责建立 SSE 通道，并把具体编排下沉到 AssistantService。
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MILLIS);
         AtomicBoolean closed = new AtomicBoolean(false);
@@ -80,6 +85,9 @@ public class AssistantChatController {
         emitter.onError(error -> closed.set(true));
         sseExecutor.execute(() -> {
             try {
+                if (authenticatedUser != null) {
+                    UserContext.set(authenticatedUser);
+                }
                 assistantService.streamChat(request, requestBody, event -> {
                     try {
                         sendEvent(emitter, event, closed);
@@ -100,6 +108,8 @@ public class AssistantChatController {
                 } catch (IOException ioException) {
                     completeEmitterWithError(emitter, closed, ioException);
                 }
+            } finally {
+                UserContext.clear();
             }
         });
         return emitter;

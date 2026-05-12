@@ -21,6 +21,10 @@
 /nbbuild/
 /nbdist/
 /.nb-gradle/
+/.agent
+/.claude
+/.shared
+/
 
 # --- OS ---
 .DS_Store
