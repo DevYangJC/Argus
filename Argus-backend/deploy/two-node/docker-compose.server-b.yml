@@ -1,0 +1,95 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: dd-rag-ollama
+    restart: unless-stopped
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  ollama-model-init:
+    image: ollama/ollama:latest
+    container_name: dd-rag-ollama-model-init
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        echo "Waiting for Ollama service..."
+        until ollama list >/dev/null 2>&1; do
+          sleep 2
+        done
+        echo "Pulling model ${OLLAMA_EMBEDDING_MODEL:-qllama/bge-small-zh-v1.5}..."
+        ollama pull ${OLLAMA_EMBEDDING_MODEL:-qllama/bge-small-zh-v1.5}
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    depends_on:
+      ollama:
+        condition: service_healthy
+
+  backend:
+    image: maven:3.9.9-eclipse-temurin-21
+    container_name: dd-rag-backend
+    restart: unless-stopped
+    working_dir: /workspace
+    command: >
+      sh -c "mvn -q -Dmaven.test.skip=true spring-boot:run"
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://${POSTGRES_HOST}:${POSTGRES_INTERNAL_PORT:-5432}/${POSTGRES_DB:-dd_rag}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-root}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-123456}
+      STORAGE_MINIO_ENDPOINT: http://${MINIO_HOST}:${MINIO_INTERNAL_PORT:-9000}
+      STORAGE_MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      STORAGE_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      STORAGE_MINIO_BUCKET: ${MINIO_BUCKET:-dd-rag-documents}
+      SPRING_AI_OLLAMA_BASE_URL: http://ollama:11434
+      ELASTICSEARCH_HOST: ${ELASTICSEARCH_HOST}
+      ELASTICSEARCH_PORT: ${ELASTICSEARCH_PORT:-9200}
+      ELASTICSEARCH_SCHEME: ${ELASTICSEARCH_SCHEME:-http}
+      DD_RAG_JWT_SECRET: ${DD_RAG_JWT_SECRET}
+      MAVEN_OPTS: -Dfile.encoding=UTF-8
+    ports:
+      - "${BACKEND_PORT:-18080}:8080"
+    volumes:
+      - ../..:/workspace
+      - maven-repo:/root/.m2
+    depends_on:
+      ollama-model-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+
+  frontend:
+    image: node:22-alpine
+    container_name: dd-rag-frontend
+    restart: unless-stopped
+    working_dir: /workspace/frontend
+    command: >
+      sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
+      VITE_DEV_PROXY_TARGET: ${VITE_DEV_PROXY_TARGET:-http://backend:8080}
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    volumes:
+      - ../..:/workspace
+      - frontend-node-modules:/workspace/frontend/node_modules
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  ollama-data:
+  maven-repo:
+  frontend-node-modules:
