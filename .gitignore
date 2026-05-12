@@ -24,7 +24,8 @@
 /.agent
 /.claude
 /.shared
-/
+/card-shwocase
+
 
 # --- OS ---
 .DS_Store

@@ -1,0 +1,390 @@
+/* ═══════════════════════════════════════
+   Groups Page — shared component styles
+   Buttons, cards, form fields, pills, etc.
+   Uses design tokens from main.css.
+   ═══════════════════════════════════════ */
+
+/* ── Buttons ── */
+.primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 18px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--brand-primary);
+  color: #fff;
+  font-size: 0.84rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  text
+  
+
+.primary-button:hover:not(:disabled) {
+  background: var(--brand-primary-dark);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.primary-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.ghost-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 16px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--surface-white);
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.ghost-button:hover:not(:disabled) {
+  border-color: var(--brand-primary-light);
+  color: var(--brand-primary);
+  background: var(--surface-accent);
+}
+
+.ghost-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Panel labels ── */
+.panel__eyebrow {
+  margin: 0 0 2px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.panel__pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  background: rgba(74, 144, 217, 0.1);
+  color: var(--brand-primary);
+  flex-shrink: 0;
+}
+
+.panel__pill--soft {
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+}
+
+.panel__pill--pending {
+  background: rgba(245, 158, 11, 0.12);
+  color: #d97706;
+}
+
+.panel__pill--member {
+  background: rgba(92, 201, 193, 0.12);
+  color: #3da89f;
+}
+
+/* ── Forms ── */
+.groups-form-field {
+  display: grid;
+  gap: 5px;
+}
+
+.groups-form-field > span {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.groups-form-field input,
+.groups-form-field textarea {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  font-family: inherit;
+  color: var(--text-primary);
+  background: var(--surface-white);
+  transition: border-color 0.15s ease;
+}
+
+.groups-form-field input:focus,
+.groups-form-field textarea:focus {
+  outline: none;
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 3px rgba(74, 144, 217, 0.1);
+}
+
+.groups-inline-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.groups-inline-form input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  font-family: inherit;
+  color: var(--text-primary);
+  background: var(--surface-white);
+  transition: border-color 0.15s ease;
+}
+
+.groups-inline-form input:focus {
+  outline: none;
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 3px rgba(74, 144, 217, 0.1);
+}
+
+/* ── Detail cards ── */
+.detail-card {
+  display: grid;
+  gap: 16px;
+  padding: 20px 24px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--surface-white);
+}
+
+.detail-card--composer,
+.detail-card--owner {
+  border-color: rgba(74, 144, 217, 0.2);
+  background: linear-gradient(150deg, rgba(74, 144, 217, 0.02), rgba(92, 201, 193, 0.02));
+}
+
+.detail-card--member {
+  border-color: rgba(92, 201, 193, 0.18);
+}
+
+.detail-card__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.detail-card__header h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  color: var(--text-primary);
+}
+
+.detail-card__stack {
+  display: grid;
+  gap: 14px;
+}
+
+.detail-card__stack--split {
+  gap: 20px;
+}
+
+.detail-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ── Detail meta ── */
+.detail-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.detail-meta > div {
+  display: grid;
+  gap: 2px;
+}
+
+.detail-meta span {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.detail-meta strong {
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.detail-note {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.detail-subsection {
+  display: grid;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.detail-subsection__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.detail-subsection h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+
+/* ── Detail empty ── */
+.detail-empty {
+  text-align: center;
+  padding: 48px 24px;
+}
+
+.detail-empty__eyebrow {
+  margin: 0 0 6px;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.detail-empty h2 {
+  margin: 0 0 8px;
+  font-size: 1.15rem;
+  color: var(--text-primary);
+}
+
+.detail-empty p {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* ── Member list ── */
+.groups-member-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.groups-member-list__item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--surface-white);
+}
+
+.groups-member-list__profile {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.groups-member-list__profile strong {
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
+.groups-member-list__profile span {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.groups-member-list__item strong {
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
+.groups-member-list__item > span {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+/* ── Permissions list ── */
+.permissions-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+  list-style: disc;
+}
+
+.permissions-list li {
+  font-size: 0.84rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* ── Join request list ── */
+.join-request-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.join-request-list__item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--surface-subtle);
+  font-size: 0.84rem;
+}
+
+.join-request-list__item strong {
+  display: block;
+  color: var(--text-primary);
+}
+
+.join-request-list__item span {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+}
+
+/* ── Placeholder text ── */
+.placeholder-text {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--text-muted);
+  font-style: italic;
+  line-height: 1.5;
+}
