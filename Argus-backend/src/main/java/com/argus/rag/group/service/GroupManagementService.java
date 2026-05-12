@@ -11,6 +11,7 @@ import com.argus.rag.group.model.entity.GroupInvitation;
 import com.argus.rag.group.model.dto.CreateGroupRequest;
 import com.argus.rag.group.model.dto.CreateInvitationRequest;
 import com.argus.rag.group.model.vo.GroupMemberResponse;
+import com.argus.rag.group.model.vo.MySentInvitationResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -118,6 +119,12 @@ public class GroupManagementService {
         requirePending(invitation);
         updateInvitationStatus(invitation.id(), GroupInvitationStatus.CANCELED);
         log.info("取消群组邀请: invitationId={}, groupId={}", invitation.id(), invitation.groupId());
+    }
+
+    /** 查询当前用户发出的所有邀请 */
+    public List<MySentInvitationResponse> listMySentInvitations() {
+        CurrentUserService.CurrentUser currentUser = currentUserService.requireBusinessUser();
+        return groupMembershipMapper.selectSentInvitationsByInviterUserId(currentUser.userId());
     }
 
     /** 查询群组成员列表（仅 OWNER 可查） */

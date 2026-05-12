@@ -5,6 +5,7 @@ import com.argus.rag.common.log.OperationLog;
 import com.argus.rag.group.model.dto.CreateGroupRequest;
 import com.argus.rag.group.model.dto.CreateInvitationRequest;
 import com.argus.rag.group.model.vo.GroupMemberResponse;
+import com.argus.rag.group.model.vo.MySentInvitationResponse;
 import com.argus.rag.group.service.GroupManagementService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -44,6 +45,12 @@ public class GroupManagementController {
             @Valid @RequestBody CreateInvitationRequest createInvitationRequest
     ) {
         return ApiResponse.success(groupManagementService.createInvitation(groupId, createInvitationRequest));
+    }
+
+    /** 查询当前用户发出的所有邀请 */
+    @GetMapping("/invitations/my-sent")
+    public ApiResponse<List<MySentInvitationResponse>> listMySentInvitations() {
+        return ApiResponse.success(groupManagementService.listMySentInvitations());
     }
 
     /** 查询群组成员列表 */

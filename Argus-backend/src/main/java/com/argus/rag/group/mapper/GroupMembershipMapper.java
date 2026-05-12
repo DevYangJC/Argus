@@ -61,6 +61,9 @@ public interface GroupMembershipMapper extends BaseMapper<Group> {
     /** 查询指定群组的成员列表 */
     List<GroupMemberResponse> selectMembersByGroupId(@Param("groupId") Long groupId);
 
+    /** 查询用户发出的邀请 */
+    List<com.argus.rag.group.model.vo.MySentInvitationResponse> selectSentInvitationsByInviterUserId(@Param("inviterUserId") Long inviterUserId);
+
     /** 删除成员关系记录 */
     int deleteMembership(@Param("groupId") Long groupId, @Param("userId") Long userId);
 }

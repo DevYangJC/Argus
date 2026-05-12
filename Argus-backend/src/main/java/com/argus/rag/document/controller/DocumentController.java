@@ -219,15 +219,16 @@ public class DocumentController {
     }
 
     /**
-     * 预览文档文本内容。
+     * 预览文档完整文本内容。
      *
-     * <p>仅返回处于 READY 状态的文档的前 200 个字符预览内容。
-     * 需要调用者是群组成员。Controller 层负责提取用户身份后传入 Service 层。
+     * <p>从对象存储（MinIO）读取原始文件并解析全部文本后返回。
+     * 不做任何截断，供前端全量渲染展示。
+     * 需要调用者是群组成员。仅支持处于 READY 状态的文档。
      *
      * @param documentId 文档 ID
      * @param groupId    文档所属群组 ID
-     * @return 文档预览信息，包含文档 ID、文件名和截断的预览文本
-     * @throws BusinessException 文档不存在、未就绪、不可预览、无权限时抛出
+     * @return 文档预览信息，包含文档 ID、文件名和完整文本内容
+     * @throws BusinessException 文档不存在、未就绪、无权限、解析失败时抛出
      */
     @GetMapping("/{documentId}/preview")
     public ApiResponse<DocumentPreviewVO> previewDocument(

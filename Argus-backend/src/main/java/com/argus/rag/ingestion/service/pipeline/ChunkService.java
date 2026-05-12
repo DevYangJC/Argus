@@ -38,8 +38,8 @@ public class ChunkService {
     private static final int INSERT_BATCH_PARAMETER_COUNT = 10;
     /** PostgreSQL 参数上限 */
     private static final int POSTGRES_PARAMETER_LIMIT = 65_535;
-    /** 单批 INSERT 最大条数，受 {@code POSTGRES_PARAMETER_LIMIT} 限制 */
-    private static final int MAX_INSERT_BATCH_SIZE = POSTGRES_PARAMETER_LIMIT / INSERT_BATCH_PARAMETER_COUNT;
+    /** 单批 INSERT 最大条数，受 {@code POSTGRES_PARAMETER_LIMIT} 限制。保留 128 个参数余量 */
+    private static final int MAX_INSERT_BATCH_SIZE = (POSTGRES_PARAMETER_LIMIT - 128) / INSERT_BATCH_PARAMETER_COUNT;
 
     /** 切片 Mapper */
     private final DocumentChunkMapper documentChunkMapper;
@@ -82,12 +82,12 @@ public class ChunkService {
     /** 按 PostgreSQL 参数上限分批入库，避免单条 SQL 超长 */
     private void persistChunkBatches(List<DocumentChunkEntity> chunks) {
         if (chunks.size() <= MAX_INSERT_BATCH_SIZE) {
-            documentChunkMapper.insert(chunks);
+            documentChunkMapper.insertBatch(chunks);
             return;
         }
         for (int start = 0; start < chunks.size(); start += MAX_INSERT_BATCH_SIZE) {
             int end = Math.min(start + MAX_INSERT_BATCH_SIZE, chunks.size());
-            documentChunkMapper.insert(chunks.subList(start, end));
+            documentChunkMapper.insertBatch(chunks.subList(start, end));
         }
     }
 

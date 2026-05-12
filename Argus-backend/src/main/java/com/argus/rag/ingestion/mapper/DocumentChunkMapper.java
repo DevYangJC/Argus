@@ -21,6 +21,15 @@ import java.util.Map;
 @Mapper
 public interface DocumentChunkMapper extends BaseMapper<DocumentChunkEntity> {
 
+
+    /**
+     * 批量插入文档切片数据。
+     *
+     * @param chunks
+     * @return
+     */
+    int insertBatch(@Param("chunks") List<DocumentChunkEntity> chunks);
+
     /**
      * 删除指定文档的所有切片记录。
      *

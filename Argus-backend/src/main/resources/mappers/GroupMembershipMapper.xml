@@ -10,7 +10,10 @@
     <select id="selectOwnedGroupsByUserId" resultType="map">
         select g.id as "groupId",
                g.group_code as "groupCode",
-               g.group_name as "groupName"
+               g.group_name as "groupName",
+               g.description as "description",
+               g.created_at as "createdAt",
+               (select count(1) from group_join_requests gjr where gjr.group_id = g.id and gjr.status = 'PENDING') as "pendingRequestCount"
         from groups g
         where g.owner_user_id = #{userId}
           and g.status = 'ACTIVE'
@@ -20,7 +23,9 @@
     <select id="selectJoinedGroupsByUserId" resultType="map">
         select g.id as "groupId",
                g.group_code as "groupCode",
-               g.group_name as "groupName"
+               g.group_name as "groupName",
+               g.description as "description",
+               g.created_at as "createdAt"
         from group_memberships gm
                  inner join groups g on g.id = gm.group_id
         where gm.user_id = #{userId}
@@ -32,7 +37,10 @@
     <select id="selectPendingInvitationsByInviteeUserId" resultType="map">
         select gi.id as "invitationId",
                gi.group_id as "groupId",
+               g.group_code as "groupCode",
                g.group_name as "groupName",
+               g.description as "description",
+               g.created_at as "createdAt",
                gi.inviter_user_id as "inviterUserId",
                u.display_name as "inviterDisplayName",
                gi.status as "status"
@@ -192,6 +200,22 @@
         where gm.group_id = #{groupId}
           and g.status = 'ACTIVE'
         order by case when gm.role = 'OWNER' then 0 else 1 end, gm.id
+    </select>
+
+    <select id="selectSentInvitationsByInviterUserId" resultType="com.argus.rag.group.model.vo.MySentInvitationResponse">
+        select gi.id as "invitationId",
+               gi.group_id as "groupId",
+               g.group_name as "groupName",
+               gi.invitee_user_id as "inviteeUserId",
+               u.display_name as "inviteeDisplayName",
+               gi.status as "status",
+               gi.created_at as "createdAt",
+               gi.decided_at as "decidedAt"
+        from group_invitations gi
+                 inner join groups g on g.id = gi.group_id
+                 inner join users u on u.id = gi.invitee_user_id
+        where gi.inviter_user_id = #{inviterUserId}
+        order by gi.created_at desc
     </select>
 
     <delete id="deleteMembership">

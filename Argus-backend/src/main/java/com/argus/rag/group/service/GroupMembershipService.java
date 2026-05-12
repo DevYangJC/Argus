@@ -121,22 +121,37 @@ public class GroupMembershipService {
         return rows.stream().map(this::toVisibleGroup).toList();
     }
 
-    private List<PendingInvitation> toPendingInvitations(List<Map<String, Object>> rows) {
-        return rows.stream().map(this::toPendingInvitation).toList();
+    private List<PendingInvitationItem> toPendingInvitations(List<Map<String, Object>> rows) {
+        return rows.stream().map(this::toPendingInvitationItem).toList();
     }
 
 
     private VisibleGroup toVisibleGroup(Map<String, Object> row) {
         Number groupId = (Number) row.get("groupId");
-        return new VisibleGroup(groupId.longValue(), String.valueOf(row.get("groupCode")), String.valueOf(row.get("groupName")));
+        Number pendingRequestCount = (Number) row.get("pendingRequestCount");
+        return new VisibleGroup(
+                groupId.longValue(), 
+                String.valueOf(row.get("groupCode")), 
+                String.valueOf(row.get("groupName")),
+                row.get("description") == null ? "" : String.valueOf(row.get("description")),
+                pendingRequestCount == null ? 0L : pendingRequestCount.longValue(),
+                String.valueOf(row.get("createdAt"))
+        );
     }
 
-    private PendingInvitation toPendingInvitation(Map<String, Object> row) {
-        return new PendingInvitation(
-                toLong(row.get("invitationId")),
-                toLong(row.get("groupId")),
+    private PendingInvitationItem toPendingInvitationItem(Map<String, Object> row) {
+        Number invitationId = (Number) row.get("invitationId");
+        Number groupId = (Number) row.get("groupId");
+        Number inviterUserId = (Number) row.get("inviterUserId");
+
+        return new PendingInvitationItem(
+                invitationId.longValue(),
+                groupId.longValue(),
+                String.valueOf(row.get("groupCode")),
                 String.valueOf(row.get("groupName")),
-                toLong(row.get("inviterUserId")),
+                row.get("description") == null ? "" : String.valueOf(row.get("description")),
+                String.valueOf(row.get("createdAt")),
+                inviterUserId.longValue(),
                 String.valueOf(row.get("inviterDisplayName")),
                 String.valueOf(row.get("status"))
         );
@@ -153,34 +168,36 @@ public class GroupMembershipService {
             /** 加入的群组列表（不含已拥有的） */
             List<VisibleGroup> joinedGroups,
             /** 待处理的邀请列表 */
-            List<PendingInvitation> pendingInvitations
+            List<PendingInvitationItem> pendingInvitations
     ) {
     }
 
-    /** 可见群组摘要信息 */
     public record VisibleGroup(
             /** 群组 ID */
             Long groupId,
             /** 群组编码 */
             String groupCode,
             /** 群组名称 */
-            String groupName
+            String groupName,
+            /** 群组描述 */
+            String description,
+            /** 待处理的申请数量 */
+            Long pendingRequestCount,
+            /** 创建时间 */
+            String createdAt
     ) {
     }
 
     /** 待处理邀请信息 */
-    public record PendingInvitation(
-            /** 邀请 ID */
+    public record PendingInvitationItem(
             Long invitationId,
-            /** 群组 ID */
             Long groupId,
-            /** 群组名称 */
+            String groupCode,
             String groupName,
-            /** 邀请人用户 ID */
+            String description,
+            String createdAt,
             Long inviterUserId,
-            /** 邀请人显示名称 */
             String inviterDisplayName,
-            /** 邀请状态 */
             String status
     ) {
     }

@@ -9,6 +9,37 @@
         where document_id = #{documentId}
     </delete>
 
+
+    <insert id="insertBatch" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        insert into document_chunks (
+        document_id,
+        group_id,
+        chunk_index,
+        chunk_text,
+        chunk_summary,
+        char_start,
+        char_end,
+        metadata_json,
+        created_at,
+        updated_at
+        ) values
+        <foreach collection="chunks" item="chunk" separator=",">
+            (
+            #{chunk.documentId},
+            #{chunk.groupId},
+            #{chunk.chunkIndex},
+            #{chunk.chunkText},
+            #{chunk.chunkSummary},
+            #{chunk.charStart},
+            #{chunk.charEnd},
+            cast(#{chunk.metadataJson} as jsonb),
+            #{chunk.createdAt},
+            #{chunk.updatedAt}
+            )
+        </foreach>
+    </insert>
+
+
     <select id="selectByDocumentId" resultType="com.argus.rag.ingestion.model.entity.DocumentChunkEntity">
         select id,
                document_id as documentId,
