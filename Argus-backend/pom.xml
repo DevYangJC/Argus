@@ -138,6 +138,13 @@
             </exclusions>
         </dependency>
 
+        <!-- 测试依赖 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
         <!-- Spring AI Alibaba — DashScope 模型接入（通义千问 Chat + Embedding） -->
         <dependency>
             <groupId>com.alibaba.cloud.ai</groupId>

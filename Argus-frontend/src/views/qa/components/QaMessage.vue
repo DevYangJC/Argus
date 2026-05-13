@@ -73,12 +73,18 @@ function formatTime(ts: number): string {
         {{ message.content }}
       </div>
 
-      <!-- Assistant pending / thinking -->
-      <div v-else-if="message.pending" class="qa-msg__thinking">
+      <!-- Assistant pending / thinking (no content yet) -->
+      <div v-else-if="message.pending && !message.content" class="qa-msg__thinking">
         <span class="qa-msg__thinking-dot" />
         <span class="qa-msg__thinking-dot" />
         <span class="qa-msg__thinking-dot" />
         <span class="qa-msg__thinking-label">正在检索知识库并生成回答…</span>
+      </div>
+
+      <!-- Assistant streaming content -->
+      <div v-else-if="message.pending" class="qa-msg__streaming">
+        <div class="qa-msg__markdown" v-html="rendered" />
+        <span class="qa-msg__cursor" />
       </div>
 
       <!-- Assistant refused -->
@@ -237,6 +243,26 @@ function formatTime(ts: number): string {
   font-size: 0.8rem;
   color: var(--text-secondary);
   letter-spacing: 0.01em;
+}
+
+/* Streaming */
+.qa-msg__streaming {
+  display: inline;
+}
+
+.qa-msg__cursor {
+  display: inline-block;
+  width: 1px;
+  height: 1.15em;
+  margin-left: 1px;
+  background: var(--brand-primary, #3b82f6);
+  vertical-align: text-bottom;
+  animation: cursor-blink 1s step-end infinite;
+}
+
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
 }
 
 /* Refused */

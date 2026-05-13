@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import { useAppStore } from '@/stores/app'
+import { useAuthStore } from '@/stores/auth'
 import { fetchGroups } from '@/api/group'
-import { askQuestion, type CitationItem } from '@/api/qa'
+import { streamAskQuestion, type CitationItem } from '@/api/qa'
 import { extractApiError } from '@/api/http'
 import type { DocumentItem } from '@/api/document'
 import DocumentPreviewModal from '@/components/DocumentPreviewModal.vue'
@@ -13,6 +14,7 @@ import QaEmptyHero from './components/QaEmptyHero.vue'
 import { useQaSessions, type QaMessage } from './composables/useQaSessions'
 
 const appStore = useAppStore()
+const authStore = useAuthStore()
 const {
   sessions,
   activeSession,
@@ -73,6 +75,10 @@ function ensureSessionForAsk(): string {
 
 async function handleAsk(text: string) {
   if (!text.trim() || selectedGroupId.value === null || asking.value) return
+  if (!authStore.accessToken) {
+    console.warn('No access token; cannot stream.')
+    return
+  }
 
   const sessionId = ensureSessionForAsk()
   const now = Date.now()
@@ -97,19 +103,59 @@ async function handleAsk(text: string) {
   })
 
   asking.value = true
+  let citationsReceived = false
   try {
-    const res = await askQuestion({
-      groupId: selectedGroupId.value,
-      question: text,
-    })
-    updateMessage(sessionId, assistantId, {
-      content: res.answer ?? '',
-      pending: false,
-      answered: res.answered,
-      reasonCode: res.reasonCode,
-      reasonMessage: res.reasonMessage,
-      citations: res.citations,
-    })
+    let streamedContent = ''
+
+    await streamAskQuestion(
+      {
+        groupId: selectedGroupId.value,
+        question: text,
+      },
+      authStore.accessToken!,
+      {
+        onToken(token: string) {
+          streamedContent += token
+          updateMessage(sessionId, assistantId, {
+            content: streamedContent,
+            pending: true,
+          })
+        },
+        onCitations(citations: CitationItem[]) {
+          citationsReceived = true
+          updateMessage(sessionId, assistantId, {
+            content: streamedContent,
+            pending: false,
+            answered: citations.length > 0 || streamedContent.length > 0,
+            reasonCode: null,
+            reasonMessage: null,
+            citations,
+          })
+        },
+        onError(message: string) {
+          updateMessage(sessionId, assistantId, {
+            content: streamedContent,
+            pending: false,
+            answered: false,
+            reasonCode: 'STREAM_ERROR',
+            reasonMessage: message,
+            citations: [],
+          })
+        },
+      },
+    )
+
+    // 流正常结束但 onCitations 未被调用时的兜底（避免覆盖已设置的 citations）
+    if (!citationsReceived) {
+      updateMessage(sessionId, assistantId, {
+        content: streamedContent,
+        pending: false,
+        answered: streamedContent.length > 0,
+        reasonCode: null,
+        reasonMessage: null,
+        citations: [],
+      })
+    }
   } catch (err) {
     updateMessage(sessionId, assistantId, {
       content: '',

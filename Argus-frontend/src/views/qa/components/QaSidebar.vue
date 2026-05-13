@@ -89,11 +89,14 @@ function formatRelative(ts: number): string {
 
       <ul v-if="sessions.length > 0" class="qa-sidebar__list">
         <li v-for="s in sessions" :key="s.id">
-          <button
+          <div
             class="qa-sidebar__item"
             :class="{ 'is-active': s.id === activeSessionId }"
-            type="button"
+            role="button"
+            tabindex="0"
             @click="emit('select-session', s.id)"
+            @keydown.enter="emit('select-session', s.id)"
+            @keydown.space.prevent="emit('select-session', s.id)"
           >
             <span class="qa-sidebar__item-bar" />
             <div class="qa-sidebar__item-body">
@@ -115,7 +118,7 @@ function formatRelative(ts: number): string {
                 <path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6" />
               </svg>
             </button>
-          </button>
+          </div>
         </li>
       </ul>
 
