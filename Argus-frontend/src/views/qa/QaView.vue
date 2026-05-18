@@ -273,7 +273,7 @@ onMounted(() => {
 <style scoped>
 .qa-page {
   display: flex;
-  height: calc(100vh - var(--app-header-height, 64px));
+  height: 100%;
   min-height: 560px;
   background: #fff;
   border: 1px solid var(--border-default);

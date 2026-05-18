@@ -6,6 +6,7 @@ import com.argus.rag.assistant.model.vo.session.AssistantSessionDetailVO;
 import com.argus.rag.assistant.model.vo.session.AssistantSessionListItemVO;
 import com.argus.rag.assistant.service.AssistantSessionService;
 import com.argus.rag.common.api.ApiResponse;
+import com.argus.rag.common.log.OperationLog;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,6 +32,7 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/api/assistant/sessions")
+@OperationLog
 public class AssistantSessionController {
 
     private final AssistantSessionService assistantSessionService;

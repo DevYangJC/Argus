@@ -541,3 +541,63 @@ COMMENT ON COLUMN assistant_session_contexts.summary_text                IS '会
 COMMENT ON COLUMN assistant_session_contexts.source_message_id           IS '摘要覆盖的结束消息 ID';
 COMMENT ON COLUMN assistant_session_contexts.context_version             IS '乐观锁版本号，初始为 0，每次更新递增';
 COMMENT ON COLUMN assistant_session_contexts.updated_at                  IS '上下文最后更新时间';
+
+
+-- ============================================================
+-- LLM 调用统计记录表
+-- 记录所有 AI 模块（QA / Assistant / 未来扩展）的 LLM 调用明细
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS llm_usage_records (
+    id                  BIGSERIAL       PRIMARY KEY,
+    user_id             BIGINT          NOT NULL,
+    group_id            BIGINT,
+    module              VARCHAR(32)     NOT NULL,
+    endpoint            VARCHAR(64)     NOT NULL,
+    session_id          VARCHAR(64),
+    prompt_tokens       INT             NOT NULL DEFAULT 0,
+    completion_tokens   INT             NOT NULL DEFAULT 0,
+    total_tokens        INT             NOT NULL DEFAULT 0,
+    is_estimated        BOOLEAN         NOT NULL DEFAULT FALSE,
+    cost_amount         DECIMAL(12,6)   DEFAULT 0,
+    cost_currency       VARCHAR(8)      DEFAULT 'CNY',
+    latency_ms          BIGINT          NOT NULL DEFAULT 0,
+    success             BOOLEAN         NOT NULL DEFAULT TRUE,
+    error_message       TEXT,
+    model_name          VARCHAR(64),
+    created_at          TIMESTAMP       NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE  llm_usage_records                   IS 'LLM调用统计记录表';
+
+COMMENT ON COLUMN llm_usage_records.id                IS '主键';
+COMMENT ON COLUMN llm_usage_records.user_id           IS '调用用户ID';
+COMMENT ON COLUMN llm_usage_records.group_id          IS '关联群组ID（可为空）';
+COMMENT ON COLUMN llm_usage_records.module            IS '模块标识: QA / ASSISTANT';
+COMMENT ON COLUMN llm_usage_records.endpoint          IS '接口标识: qa/ask, qa/stream-ask, assistant/chat, assistant/chat/stream';
+COMMENT ON COLUMN llm_usage_records.session_id        IS '助手会话ID（QA模块可为空）';
+COMMENT ON COLUMN llm_usage_records.prompt_tokens     IS '输入token数';
+COMMENT ON COLUMN llm_usage_records.completion_tokens IS '输出token数';
+COMMENT ON COLUMN llm_usage_records.total_tokens      IS '总token数';
+COMMENT ON COLUMN llm_usage_records.is_estimated      IS '是否为估算值（流式调用可能无法获取精确token数）';
+COMMENT ON COLUMN llm_usage_records.cost_amount       IS '本次调用费用（元）';
+COMMENT ON COLUMN llm_usage_records.cost_currency     IS '货币单位';
+COMMENT ON COLUMN llm_usage_records.latency_ms        IS '响应耗时(毫秒)';
+COMMENT ON COLUMN llm_usage_records.success           IS '是否成功';
+COMMENT ON COLUMN llm_usage_records.error_message     IS '失败原因';
+COMMENT ON COLUMN llm_usage_records.model_name        IS '使用的模型名称';
+COMMENT ON COLUMN llm_usage_records.created_at        IS '记录时间';
+
+-- 索引：按用户+时间查询调用记录
+CREATE INDEX IF NOT EXISTS idx_llm_usage_user_created
+    ON llm_usage_records (user_id, created_at);
+-- 索引：按群组+时间查询调用记录
+CREATE INDEX IF NOT EXISTS idx_llm_usage_group_created
+    ON llm_usage_records (group_id, created_at);
+-- 索引：按模块+时间查询调用记录
+CREATE INDEX IF NOT EXISTS idx_llm_usage_module_created
+    ON llm_usage_records (module, created_at);
+-- 索引：按时间查询调用记录
+CREATE INDEX IF NOT EXISTS idx_llm_usage_created_at
+    ON llm_usage_records (created_at);
+

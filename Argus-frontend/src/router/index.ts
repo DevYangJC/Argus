@@ -61,6 +61,12 @@ const router = createRouter({
           meta: { title: '用户管理', requireAdmin: true },
         },
         {
+          path: 'admin/metrics',
+          name: 'admin-metrics',
+          component: () => import('../views/admin/MetricsView.vue'),
+          meta: { title: '使用统计', requireAdmin: true },
+        },
+        {
           path: 'settings',
           name: 'settings',
           component: () => import('../views/settings/SettingsView.vue'),

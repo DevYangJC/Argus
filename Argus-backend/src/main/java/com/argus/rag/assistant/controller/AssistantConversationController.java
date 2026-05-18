@@ -2,6 +2,7 @@ package com.argus.rag.assistant.controller;
 
 import com.argus.rag.assistant.model.vo.conversation.AssistantConversationContextVO;
 import com.argus.rag.assistant.service.AssistantConversationService;
+import com.argus.rag.common.log.OperationLog;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/assistant/sessions")
+@OperationLog
 public class AssistantConversationController {
 
     private final AssistantConversationService assistantConversationService;

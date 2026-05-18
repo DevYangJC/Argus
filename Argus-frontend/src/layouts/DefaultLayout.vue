@@ -49,6 +49,7 @@ const activeMenu = computed(() => {
   if (path.startsWith('/app/qa')) return 'qa'
   if (path.startsWith('/app/assistant')) return 'assistant'
   if (path.startsWith('/app/groups')) return 'groups'
+  if (path.startsWith('/app/admin/metrics')) return 'metrics'
   if (path.startsWith('/app/admin')) return 'admin'
   if (path.startsWith('/app/settings')) return 'settings'
   return 'groups'
@@ -100,6 +101,13 @@ const allBottomItems = [
     label: '用户管理',
     icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="4" stroke="currentColor" stroke-width="1.5"/><path d="M12 8V12L15 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`,
     path: '/app/admin/users',
+    roles: ['ADMIN'] as const,
+  },
+  {
+    key: 'metrics',
+    label: '使用统计',
+    icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M3 3V16C3 17.1046 3.89543 18 5 18H19C20.1046 18 21 17.1046 21 16V8C21 6.89543 20.1046 6 19 6H12L10 3H5C3.89543 3 3 3.89543 3 5V3Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M7 14L10 10L13 12L17 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    path: '/app/admin/metrics',
     roles: ['ADMIN'] as const,
   },
   {

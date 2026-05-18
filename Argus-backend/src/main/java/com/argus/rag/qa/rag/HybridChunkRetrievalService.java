@@ -26,25 +26,27 @@ import java.util.*;
  * </p>
  * <h3>检索流程</h3>
  * <ol>
- *   <li>查询规划：由 {@link QueryPlanningService} 分析问题并生成检索语句</li>
- *   <li>双通道检索：向量检索 + 关键词检索</li>
- *   <li>RRF 融合排序：合并两通道结果并按 RRF 评分排序</li>
- *   <li>聚类分组：将连续的切片聚合为类簇</li>
- *   <li>邻居窗口扩展：扩展上下文窗口以提供更完整的证据</li>
- *   <li>证据充分度评估：根据检索结果评估证据质量</li>
+ * <li>查询规划：由 {@link QueryPlanningService} 分析问题并生成检索语句</li>
+ * <li>双通道检索：向量检索 + 关键词检索</li>
+ * <li>RRF 融合排序：合并两通道结果并按 RRF 评分排序</li>
+ * <li>聚类分组：将连续的切片聚合为类簇</li>
+ * <li>邻居窗口扩展：扩展上下文窗口以提供更完整的证据</li>
+ * <li>证据充分度评估：根据检索结果评估证据质量</li>
  * </ol>
  */
 @Service
 @Slf4j
 public class HybridChunkRetrievalService {
 
-
     /** 默认邻居窗口大小（向前向后各扩展的切片数） */
     private static final int DEFAULT_NEIGHBOR_WINDOW = 1;
     /** 每个检索通道返回的最大候选数 */
     private static final int CHANNEL_TOP_K = 50;
-    /** RRF 融合算法的 k 参数，控制排名平滑程度 */
-    private static final int RRF_K = 60;
+    /**
+     * RRF 融合算法的 k 参数。
+     * k=0 使排名靠前的切片获得更大权重，配合归一化产出有意义的 0~1 评分
+     */
+    private static final int RRF_K = 0;
 
     /** 向量检索适配器 */
     private final PgVectorRetrievalAdapter vectorRetrievalAdapter;
@@ -65,15 +67,13 @@ public class HybridChunkRetrievalService {
             PgVectorRetrievalAdapter vectorRetrievalAdapter,
             ElasticsearchChunkIndexService elasticsearchChunkIndexService,
             DocumentChunkMapper documentChunkMapper,
-            QueryPlanningService queryPlanningService
-    ) {
+            QueryPlanningService queryPlanningService) {
         this(
                 vectorRetrievalAdapter,
                 elasticsearchChunkIndexService,
                 documentChunkMapper,
                 queryPlanningService,
-                DEFAULT_NEIGHBOR_WINDOW
-        );
+                DEFAULT_NEIGHBOR_WINDOW);
     }
 
     /**
@@ -84,8 +84,7 @@ public class HybridChunkRetrievalService {
             ElasticsearchChunkIndexService elasticsearchChunkIndexService,
             DocumentChunkMapper documentChunkMapper,
             QueryPlanningService queryPlanningService,
-            int neighborWindow
-    ) {
+            int neighborWindow) {
         this.vectorRetrievalAdapter = vectorRetrievalAdapter;
         this.elasticsearchChunkIndexService = elasticsearchChunkIndexService;
         this.documentChunkMapper = documentChunkMapper;
@@ -110,9 +109,11 @@ public class HybridChunkRetrievalService {
         String normalizedQuestion = requireQuestion(question);
         int validTopK = topK > 0 ? topK : 5;
 
-        log.info("混合检索开始: groupId={}, topK={}, questionLength={}", validGroupId, validTopK, normalizedQuestion.length());
+        log.info("混合检索开始: groupId={}, topK={}, questionLength={}", validGroupId, validTopK,
+                normalizedQuestion.length());
         QueryPlanResult queryPlan = queryPlanningService.plan(normalizedQuestion);
-        log.info("查询规划完成: groupId={}, strategy={}, queries={}", validGroupId, queryPlan.strategy(), queryPlan.queries());
+        log.info("查询规划完成: groupId={}, strategy={}, queries={}", validGroupId, queryPlan.strategy(),
+                queryPlan.queries());
 
         Map<Long, RetrievalCandidate> candidates = new LinkedHashMap<>();
 
@@ -144,8 +145,7 @@ public class HybridChunkRetrievalService {
 
         List<Long> chunkIds = rankedCandidates.stream().map(RetrievalCandidate::chunkId).toList();
         Map<Long, Map<String, Object>> rowByChunkId = indexRows(
-                documentChunkMapper.selectQaReadyChunksByIds(validGroupId, chunkIds)
-        );
+                documentChunkMapper.selectQaReadyChunksByIds(validGroupId, chunkIds));
         Map<Long, List<DocumentChunkEntity>> chunkWindowCache = new LinkedHashMap<>();
         List<Document> documents = new ArrayList<>();
         int evidenceIndex = 1;
@@ -177,15 +177,14 @@ public class HybridChunkRetrievalService {
     private void mergeVectorHits(
             Map<Long, RetrievalCandidate> candidates,
             Long groupId,
-            String query
-    ) {
-        List<PgVectorRetrievalAdapter.VectorHit> vectorHits = vectorRetrievalAdapter.search(groupId, query, CHANNEL_TOP_K);
+            String query) {
+        List<PgVectorRetrievalAdapter.VectorHit> vectorHits = vectorRetrievalAdapter.search(groupId, query,
+                CHANNEL_TOP_K);
         for (int index = 0; index < vectorHits.size(); index++) {
             PgVectorRetrievalAdapter.VectorHit hit = vectorHits.get(index);
             RetrievalCandidate candidate = candidates.computeIfAbsent(
                     hit.chunkId(),
-                    ignored -> RetrievalCandidate.fromVectorHit(hit)
-            );
+                    ignored -> RetrievalCandidate.fromVectorHit(hit));
             candidate.mergeVectorHit(hit, index + 1);
         }
     }
@@ -194,16 +193,14 @@ public class HybridChunkRetrievalService {
     private void mergeKeywordHits(
             Map<Long, RetrievalCandidate> candidates,
             Long groupId,
-            String query
-    ) {
-        List<ElasticsearchChunkIndexService.KeywordHit> keywordHits =
-                elasticsearchChunkIndexService.search(groupId, query, CHANNEL_TOP_K);
+            String query) {
+        List<ElasticsearchChunkIndexService.KeywordHit> keywordHits = elasticsearchChunkIndexService.search(groupId,
+                query, CHANNEL_TOP_K);
         for (int index = 0; index < keywordHits.size(); index++) {
             ElasticsearchChunkIndexService.KeywordHit hit = keywordHits.get(index);
             RetrievalCandidate candidate = candidates.computeIfAbsent(
                     hit.chunkId(),
-                    ignored -> RetrievalCandidate.fromKeywordHit(hit)
-            );
+                    ignored -> RetrievalCandidate.fromKeywordHit(hit));
             candidate.mergeKeywordHit(hit, index + 1);
         }
     }
@@ -222,8 +219,7 @@ public class HybridChunkRetrievalService {
             String evidenceId,
             Map<String, Object> row,
             RetrievalCluster cluster,
-            Map<Long, List<DocumentChunkEntity>> chunkWindowCache
-    ) {
+            Map<Long, List<DocumentChunkEntity>> chunkWindowCache) {
         Long documentId = requireLong(getValue(row, "documentId"), "documentId");
         Integer chunkIndex = requireInteger(getValue(row, "chunkIndex"), "chunkIndex");
         if (!documentId.equals(cluster.documentId()) || !chunkIndex.equals(cluster.primaryChunkIndex())) {
@@ -242,7 +238,8 @@ public class HybridChunkRetrievalService {
         metadata.put("startChunkIndex", cluster.expandedStartChunkIndex(neighborWindow));
         metadata.put("endChunkIndex", cluster.expandedEndChunkIndex(neighborWindow));
         metadata.put("fileName", fileName);
-        metadata.put("score", cluster.rankingScore());
+        double normalizedScore = normalizeScore(cluster.rankingScore());
+        metadata.put("score", normalizedScore);
         metadata.put("retrievalSource", cluster.source());
         metadata.put("vectorScore", cluster.vectorScore());
         metadata.put("keywordScore", cluster.keywordScore());
@@ -262,15 +259,13 @@ public class HybridChunkRetrievalService {
     private String buildEvidenceWindow(
             Map<String, Object> row,
             RetrievalCluster cluster,
-            Map<Long, List<DocumentChunkEntity>> chunkWindowCache
-    ) {
+            Map<Long, List<DocumentChunkEntity>> chunkWindowCache) {
         Long groupId = requireLong(getValue(row, "groupId"), "groupId");
         Long documentId = requireLong(getValue(row, "documentId"), "documentId");
         String fileName = requireText(getValue(row, "fileName"), "fileName");
         List<DocumentChunkEntity> chunks = chunkWindowCache.computeIfAbsent(
                 documentId,
-                ignored -> documentChunkMapper.selectReadyActiveChunksByDocumentId(groupId, documentId)
-        );
+                ignored -> documentChunkMapper.selectReadyActiveChunksByDocumentId(groupId, documentId));
         if (chunks.isEmpty()) {
             return null;
         }
@@ -334,12 +329,13 @@ public class HybridChunkRetrievalService {
                 .map(document -> document.getMetadata().get("retrievalSource"))
                 .anyMatch(source -> "VECTOR".equals(source) || "BOTH".equals(source));
         double topScore = documents.stream()
-                .map(document -> document.getMetadata().get("hybridScore"))
+                .map(document -> document.getMetadata().get("score"))
                 .filter(Double.class::isInstance)
                 .map(Double.class::cast)
                 .max(Double::compareTo)
                 .orElse(0D);
-        if (documents.size() >= 2 && (hasBothSource || (hasVectorEvidence && topScore >= 0.95D))) {
+        // 归一化后 score ≥ 0.85 对应双通道 rank-1 或多次高排名命中
+        if (documents.size() >= 2 && (hasBothSource || (hasVectorEvidence && topScore >= 0.85D))) {
             return EvidenceLevel.SUFFICIENT;
         }
         if (hasBothSource || documents.size() >= 2) {
@@ -356,6 +352,30 @@ public class HybridChunkRetrievalService {
             case PARTIAL -> "当前证据只覆盖部分问题，只能回答证据明确支持的部分，未覆盖部分必须明确说明不足。";
             case SUFFICIENT -> "当前证据较充分，可以正常回答，但仍然不得超出证据进行臆测。";
         };
+    }
+
+    /**
+     * 将原始 RRF 融合评分归一化到 [0, 1] 区间。
+     * <p>
+     * 使用指数饱和函数 {@code 1 - e^(-x)}，具有以下特性：
+     * <ul>
+     * <li>边际递减：每增加一份独立证据，分数增幅逐渐变小，符合证据积累直觉</li>
+     * <li>自动适配：无需硬编码除数，不受查询条数和 topK 变化影响</li>
+     * <li>渐进逼近 1：体现检索系统固有的不确定性</li>
+     * </ul>
+     * <p>
+     * 典型映射（k=0 时）：
+     * <ul>
+     * <li>单通道 rank-1 命中（原始分 1.0） → 0.63</li>
+     * <li>双通道 rank-1 命中（原始分 2.0） → 0.86</li>
+     * <li>多查询多次命中（原始分 ≥ 3.0） → ≥ 0.95</li>
+     * </ul>
+     *
+     * @param rawRrfScore 原始 RRF 累加评分（k=0 时值域 [0, +∞)）
+     * @return 归一化到 [0, 1) 的评分
+     */
+    private double normalizeScore(double rawRrfScore) {
+        return 1.0 - Math.exp(-rawRrfScore);
     }
 
     /** 从 Row Map 中获取值，支持驼峰和小写两种键名 */
@@ -549,12 +569,14 @@ public class HybridChunkRetrievalService {
             rankingScore = Math.max(rankingScore, candidate.rankingScore());
             vectorScore = Math.max(vectorScore, candidate.vectorScore());
             keywordScore = Math.max(keywordScore, candidate.keywordScore());
-            hasVectorSource = hasVectorSource || "VECTOR".equals(candidate.source()) || "BOTH".equals(candidate.source());
-            hasKeywordSource = hasKeywordSource || "KEYWORD".equals(candidate.source()) || "BOTH".equals(candidate.source());
+            hasVectorSource = hasVectorSource || "VECTOR".equals(candidate.source())
+                    || "BOTH".equals(candidate.source());
+            hasKeywordSource = hasKeywordSource || "KEYWORD".equals(candidate.source())
+                    || "BOTH".equals(candidate.source());
             if (primaryCandidate == null
                     || candidate.rankingScore() > primaryCandidate.rankingScore()
                     || (candidate.rankingScore() == primaryCandidate.rankingScore()
-                    && candidate.chunkIndex() < primaryCandidate.chunkIndex())) {
+                            && candidate.chunkIndex() < primaryCandidate.chunkIndex())) {
                 primaryCandidate = candidate;
             }
         }

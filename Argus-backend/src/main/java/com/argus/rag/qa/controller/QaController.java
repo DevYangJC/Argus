@@ -1,5 +1,6 @@
 package com.argus.rag.qa.controller;
 
+import com.argus.rag.common.log.OperationLog;
 import com.argus.rag.qa.model.dto.AskQuestionRequest;
 import com.argus.rag.qa.model.vo.AskQuestionResponse;
 import com.argus.rag.qa.service.QaChatService;
@@ -28,6 +29,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/api/qa")
+@OperationLog
 public class QaController {
 
     private static final Logger log = LoggerFactory.getLogger(QaController.class);

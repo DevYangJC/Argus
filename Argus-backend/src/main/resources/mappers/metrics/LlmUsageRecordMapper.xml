@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.argus.rag.metrics.mapper.LlmUsageRecordMapper">
+
+    <resultMap id="llmUsageRecordMap" type="com.argus.rag.metrics.model.entity.LlmUsageRecordEntity">
+        <id property="id" column="id"/>
+        <result property="userId" column="user_id"/>
+        <result property="groupId" column="group_id"/>
+        <result property="module" column="module"/>
+        <result property="endpoint" column="endpoint"/>
+        <result property="sessionId" column="session_id"/>
+        <result property="promptTokens" column="prompt_tokens"/>
+        <result property="completionTokens" column="completion_tokens"/>
+        <result property="totalTokens" column="total_tokens"/>
+        <result property="isEstimated" column="is_estimated"/>
+        <result property="costAmount" column="cost_amount"/>
+        <result property="costCurrency" column="cost_currency"/>
+        <result property="latencyMs" column="latency_ms"/>
+        <result property="success" column="success"/>
+        <result property="errorMessage" column="error_message"/>
+        <result property="modelName" column="model_name"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <!-- 通用统计查询：支持按 userId 和/或 groupId 筛选 -->
+    <select id="selectUsageStats" resultType="com.argus.rag.metrics.model.vo.UsageStatsVO">
+        SELECT
+            COALESCE(SUM(prompt_tokens), 0) AS totalPromptTokens,
+            COALESCE(SUM(completion_tokens), 0) AS totalCompletionTokens,
+            COALESCE(SUM(total_tokens), 0) AS totalTokens,
+            COALESCE(SUM(cost_amount), 0) AS totalCost,
+            COUNT(*) AS totalRequests,
+            COUNT(CASE WHEN success = true THEN 1 END) AS successRequests,
+            COUNT(CASE WHEN success = false THEN 1 END) AS failedRequests,
+            CASE WHEN COUNT(*) > 0
+                THEN ROUND(COUNT(CASE WHEN success = true THEN 1 END) * 100.0 / COUNT(*), 2)
+                ELSE 0
+            END AS successRate,
+            COALESCE(AVG(latency_ms), 0) AS avgLatencyMs,
+            CASE WHEN EXTRACT(EPOCH FROM (MAX(created_at) - MIN(created_at))) > 0
+                THEN ROUND(COUNT(*) * 60.0 / EXTRACT(EPOCH FROM (MAX(created_at) - MIN(created_at))), 2)
+                ELSE COUNT(*)
+            END AS avgRpm,
+            CASE WHEN EXTRACT(EPOCH FROM (MAX(created_at) - MIN(created_at))) > 0
+                THEN ROUND(SUM(total_tokens) * 60.0 / EXTRACT(EPOCH FROM (MAX(created_at) - MIN(created_at))), 2)
+                ELSE COALESCE(SUM(total_tokens), 0)
+            END AS avgTpm
+        FROM llm_usage_records
+        WHERE created_at >= #{startTime}
+        <if test="userId != null">
+            AND user_id = #{userId}
+        </if>
+        <if test="groupId != null">
+            AND group_id = #{groupId}
+        </if>
+    </select>
+
+    <!-- 每日趋势统计 -->
+    <select id="selectDailyTrend" resultType="com.argus.rag.metrics.model.vo.MetricsOverviewVO$DailyStats">
+        SELECT
+            TO_CHAR(created_at, 'YYYY-MM-DD') AS date,
+            COUNT(*) AS requests,
+            COALESCE(SUM(total_tokens), 0) AS tokens,
+            COALESCE(SUM(cost_amount), 0) AS cost
+        FROM llm_usage_records
+        WHERE created_at >= #{startTime}
+        <if test="module != null and module != ''">
+            AND module = #{module}
+        </if>
+        GROUP BY TO_CHAR(created_at, 'YYYY-MM-DD')
+        ORDER BY date ASC
+    </select>
+
+    <!-- 用户使用量排行 -->
+    <select id="selectUserRank" resultType="com.argus.rag.metrics.model.vo.UsageRankItemVO">
+        SELECT
+            r.user_id AS id,
+            u.display_name AS name,
+            COUNT(*) AS totalRequests,
+            COALESCE(SUM(r.total_tokens), 0) AS totalTokens,
+            COALESCE(SUM(r.cost_amount), 0) AS totalCost
+        FROM llm_usage_records r
+        LEFT JOIN users u ON u.id = r.user_id
+        WHERE r.created_at >= #{startTime}
+        GROUP BY r.user_id, u.display_name
+        ORDER BY totalTokens DESC
+        LIMIT #{limit}
+    </select>
+
+    <!-- 群组使用量排行 -->
+    <select id="selectGroupRank" resultType="com.argus.rag.metrics.model.vo.UsageRankItemVO">
+        SELECT
+            r.group_id AS id,
+            g.group_name AS name,
+            COUNT(*) AS totalRequests,
+            COALESCE(SUM(r.total_tokens), 0) AS totalTokens,
+            COALESCE(SUM(r.cost_amount), 0) AS totalCost
+        FROM llm_usage_records r
+        LEFT JOIN groups g ON g.id = r.group_id
+        WHERE r.created_at >= #{startTime}
+          AND r.group_id IS NOT NULL
+        GROUP BY r.group_id, g.group_name
+        ORDER BY totalTokens DESC
+        LIMIT #{limit}
+    </select>
+
+</mapper>

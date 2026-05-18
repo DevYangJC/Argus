@@ -450,7 +450,7 @@ onMounted(async () => {
 <style scoped>
 .asst-page {
   display: flex;
-  height: calc(100vh - var(--app-header-height, 64px));
+  height: 100%;
   min-height: 600px;
   background: #fff;
   border: 1px solid var(--border-default);

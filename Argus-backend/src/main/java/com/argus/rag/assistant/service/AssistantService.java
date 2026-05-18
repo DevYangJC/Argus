@@ -16,6 +16,15 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.argus.rag.metrics.LlmEndpoint;
+import com.argus.rag.metrics.LlmModule;
+import com.argus.rag.metrics.collector.LlmUsageCollector;
+import com.argus.rag.metrics.cost.LlmCostCalculator;
+import com.argus.rag.metrics.model.dto.LlmUsageRecordDTO;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -32,19 +41,29 @@ public class AssistantService {
     private final GroupMembershipService groupMembershipService;
     private final CurrentUserService currentUserService;
     private final ObjectMapper objectMapper;
+    private final LlmUsageCollector llmUsageCollector;
+    private final LlmCostCalculator llmCostCalculator;
+
+    private static final Logger log = LoggerFactory.getLogger(AssistantService.class);
+    private static final String MODEL_NAME = "qwen-plus";
+    private static final int TOKEN_ESTIMATE_DIVISOR = 4;
 
     public AssistantService(
             AssistantConversationService assistantConversationService,
             AssistantAgentFacade assistantAgentFacade,
             GroupMembershipService groupMembershipService,
             CurrentUserService currentUserService,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            LlmUsageCollector llmUsageCollector,
+            LlmCostCalculator llmCostCalculator
     ) {
         this.assistantConversationService = assistantConversationService;
         this.assistantAgentFacade = assistantAgentFacade;
         this.groupMembershipService = groupMembershipService;
         this.currentUserService = currentUserService;
         this.objectMapper = objectMapper;
+        this.llmUsageCollector = llmUsageCollector;
+        this.llmCostCalculator = llmCostCalculator;
     }
 
     /**
@@ -58,29 +77,52 @@ public class AssistantService {
      */
     @Transactional
     public AssistantChatResponse chat(HttpServletRequest request, AssistantChatRequest chatRequest) {
+        long startTime = System.currentTimeMillis();
         CurrentUserService.CurrentUser currentUser = currentUserService.requireBusinessUser();
         AssistantChatRequest safeRequest = requireChatRequest(chatRequest);
 
-        // 仅对话模式先落用户消息，再调模型，这样后续 hook 可以基于最新会话状态重建上下文。
-        saveUserMessage(currentUser.userId(), safeRequest);
-        AssistantExecutionResult executionResult = executeAssistant(
-                request,
-                currentUser.userId(),
-                safeRequest
-        );
-        AssistantMessageVO assistantMessage = saveAssistantMessage(
-                currentUser.userId(),
-                safeRequest,
-                executionResult
-        );
-        return new AssistantChatResponse(
-                safeRequest.sessionId(),
-                assistantMessage.messageId(),
-                assistantMessage.content(),
-                safeRequest.toolMode(),
-                safeRequest.groupId(),
-                executionResult.citations()
-        );
+        String reply = null;
+        boolean success = false;
+        String errorMessage = null;
+        try {
+            // 仅对话模式先落用户消息，再调模型，这样后续 hook 可以基于最新会话状态重建上下文。
+            saveUserMessage(currentUser.userId(), safeRequest);
+            AssistantExecutionResult executionResult = executeAssistant(
+                    request,
+                    currentUser.userId(),
+                    safeRequest
+            );
+            reply = executionResult.reply();
+            AssistantMessageVO assistantMessage = saveAssistantMessage(
+                    currentUser.userId(),
+                    safeRequest,
+                    executionResult
+            );
+            success = true;
+            return new AssistantChatResponse(
+                    safeRequest.sessionId(),
+                    assistantMessage.messageId(),
+                    assistantMessage.content(),
+                    safeRequest.toolMode(),
+                    safeRequest.groupId(),
+                    executionResult.citations()
+            );
+        } catch (Exception e) {
+            errorMessage = e.getMessage();
+            throw e;
+        } finally {
+            recordUsage(
+                    currentUser.userId(),
+                    safeRequest.groupId(),
+                    safeRequest.sessionId(),
+                    LlmEndpoint.ASSISTANT_CHAT,
+                    safeRequest.message(),
+                    reply,
+                    startTime,
+                    success,
+                    errorMessage
+            );
+        }
     }
 
     /**
@@ -123,48 +165,71 @@ public class AssistantService {
             AssistantStreamEventEmitter eventEmitter,
             ChatStreamExecutor streamExecutor
     ) {
+        long startTime = System.currentTimeMillis();
         CurrentUserService.CurrentUser currentUser = currentUserService.requireBusinessUser();
         AssistantChatRequest safeRequest = requireChatRequest(chatRequest);
         // 流式场景和同步场景共享同一条主链，只是把模型回复拆成 delta 逐步回传给前端。
         // 用户消息是先落库，再调模型。
-        saveUserMessage(currentUser.userId(), safeRequest);
 
-        // 告诉前端：流式回答开始了
-        eventEmitter.emit(AssistantChatStreamEvent.start(
-                safeRequest.sessionId(),
-                safeRequest.toolMode(),
-                safeRequest.groupId()
-        ));
+        String reply = null;
+        boolean success = false;
+        String errorMessage = null;
+        try {
+            saveUserMessage(currentUser.userId(), safeRequest);
 
+            // 告诉前端：流式回答开始了
+            eventEmitter.emit(AssistantChatStreamEvent.start(
+                    safeRequest.sessionId(),
+                    safeRequest.toolMode(),
+                    safeRequest.groupId()
+            ));
 
-        AssistantExecutionResult executionResult = executeAssistantStreaming(
-                currentUser.userId(),
-                safeRequest,
-                // 每当模型吐出一小段文本 delta, 包装为AssistantChatStreamEvent.delta()，再通过 eventEmitter.emit(...) 发给前端
-                delta -> eventEmitter.emit(AssistantChatStreamEvent.delta(
-                        safeRequest.sessionId(),
-                        safeRequest.toolMode(),
-                        safeRequest.groupId(),
-                        delta
-                )),
-                streamExecutor
-        );
-        // 保存助手回复
-        AssistantMessageVO assistantMessage = saveAssistantMessage(
-                currentUser.userId(),
-                safeRequest,
-                executionResult
-        );
+            AssistantExecutionResult executionResult = executeAssistantStreaming(
+                    currentUser.userId(),
+                    safeRequest,
+                    // 每当模型吐出一小段文本 delta, 包装为AssistantChatStreamEvent.delta()，再通过 eventEmitter.emit(...) 发给前端
+                    delta -> eventEmitter.emit(AssistantChatStreamEvent.delta(
+                            safeRequest.sessionId(),
+                            safeRequest.toolMode(),
+                            safeRequest.groupId(),
+                            delta
+                    )),
+                    streamExecutor
+            );
+            reply = executionResult.reply();
+            // 保存助手回复
+            AssistantMessageVO assistantMessage = saveAssistantMessage(
+                    currentUser.userId(),
+                    safeRequest,
+                    executionResult
+            );
 
-        // 发送done事件，表示流式回答结束
-        eventEmitter.emit(AssistantChatStreamEvent.done(
-                safeRequest.sessionId(),
-                safeRequest.toolMode(),
-                safeRequest.groupId(),
-                assistantMessage.messageId(),
-                executionResult.reply(),
-                executionResult.citations()
-        ));
+            // 发送done事件，表示流式回答结束
+            eventEmitter.emit(AssistantChatStreamEvent.done(
+                    safeRequest.sessionId(),
+                    safeRequest.toolMode(),
+                    safeRequest.groupId(),
+                    assistantMessage.messageId(),
+                    executionResult.reply(),
+                    executionResult.citations()
+            ));
+            success = true;
+        } catch (Exception e) {
+            errorMessage = e.getMessage();
+            throw e;
+        } finally {
+            recordUsage(
+                    currentUser.userId(),
+                    safeRequest.groupId(),
+                    safeRequest.sessionId(),
+                    LlmEndpoint.ASSISTANT_CHAT_STREAM,
+                    safeRequest.message(),
+                    reply,
+                    startTime,
+                    success,
+                    errorMessage
+            );
+        }
     }
 
     /**
@@ -298,6 +363,69 @@ public class AssistantService {
     private void requireKnowledgeBaseReadableIfNeeded( AssistantChatRequest safeRequest) {
         if (safeRequest.toolMode() == AssistantToolMode.KB_SEARCH) {
             groupMembershipService.requireGroupReadable( safeRequest.groupId());
+        }
+    }
+
+    /**
+     * Token 估算：基于字符数除以 4 的简化估算。
+     * <p>ReactAgent 框架不直接暴露 token usage，因此采用估算方式。
+     * 未来若框架支持精确 token 返回，可替换为精确值。</p>
+     */
+    private int estimateTokens(String text) {
+        if (text == null || text.isEmpty()) {
+            return 0;
+        }
+        return text.length() / TOKEN_ESTIMATE_DIVISOR;
+    }
+
+    /**
+     * 记录 LLM 用量。
+     * <p>统计记录通过 try-catch 保护，确保不影响主业务流程。</p>
+     */
+    private void recordUsage(
+            Long userId,
+            Long groupId,
+            Long sessionId,
+            String endpoint,
+            String userMessage,
+            String reply,
+            long startTime,
+            boolean success,
+            String errorMessage
+    ) {
+        try {
+            long latencyMs = System.currentTimeMillis() - startTime;
+            int promptTokens = estimateTokens(userMessage);
+            int completionTokens = estimateTokens(reply);
+            int totalTokens = promptTokens + completionTokens;
+
+            BigDecimal costAmount = llmCostCalculator.calculate(MODEL_NAME, promptTokens, completionTokens);
+
+            LlmUsageRecordDTO record = LlmUsageRecordDTO.builder()
+                    .userId(userId)
+                    .groupId(groupId)
+                    .module(LlmModule.ASSISTANT)
+                    .endpoint(endpoint)
+                    .sessionId(sessionId != null ? sessionId.toString() : null)
+                    .promptTokens(promptTokens)
+                    .completionTokens(completionTokens)
+                    .totalTokens(totalTokens)
+                    .isEstimated(true)
+                    .costAmount(costAmount)
+                    .latencyMs(latencyMs)
+                    .success(success)
+                    .errorMessage(errorMessage)
+                    .modelName(MODEL_NAME)
+                    .build();
+
+            llmUsageCollector.record(record);
+
+            if (log.isDebugEnabled()) {
+                log.debug("Assistant LLM 用量已记录: endpoint={}, success={}, promptTokens={}, completionTokens={}, totalTokens={}, latencyMs={}",
+                        endpoint, success, promptTokens, completionTokens, totalTokens, latencyMs);
+            }
+        } catch (Exception e) {
+            log.warn("Assistant LLM 用量记录失败，不影响主流程: {}", e.getMessage(), e);
         }
     }
 

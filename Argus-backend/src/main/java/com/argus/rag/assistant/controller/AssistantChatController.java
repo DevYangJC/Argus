@@ -5,6 +5,7 @@ import com.argus.rag.assistant.model.vo.chat.AssistantChatResponse;
 import com.argus.rag.assistant.model.vo.chat.AssistantChatStreamEvent;
 import com.argus.rag.assistant.service.AssistantService;
 import com.argus.rag.common.api.ApiResponse;
+import com.argus.rag.common.log.OperationLog;
 import com.argus.rag.common.security.AuthenticatedUser;
 import com.argus.rag.common.security.UserContext;
 import jakarta.servlet.http.HttpServletRequest;
@@ -53,6 +54,7 @@ public class AssistantChatController {
      * @return 包含助手回复内容和引用列表的响应
      */
     @PostMapping("/chat")
+    @OperationLog
     public ApiResponse<AssistantChatResponse> chat(
             @Valid @RequestBody AssistantChatRequest requestBody,
             HttpServletRequest request
@@ -70,6 +72,7 @@ public class AssistantChatController {
      * @return SSE 发射器，用于向客户端发送流式事件
      */
     @PostMapping(path = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @OperationLog
     public SseEmitter streamChat(
             @Valid @RequestBody AssistantChatRequest requestBody,
             HttpServletRequest request
