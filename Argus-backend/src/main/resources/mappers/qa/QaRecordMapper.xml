@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.argus.rag.qa.mapper.QaRecordMapper">
+
+    <resultMap id="qaRecordEntityMap" type="com.argus.rag.qa.model.entity.QaRecordEntity">
+        <id property="id" column="id"/>
+        <result property="userId" column="user_id"/>
+        <result property="groupId" column="group_id"/>
+        <result property="question" column="question"/>
+        <result property="answer" column="answer"/>
+        <result property="answered" column="answered"/>
+        <result property="reasonCode" column="reason_code"/>
+        <result property="reasonMessage" column="reason_message"/>
+        <result property="evidenceLevel" column="evidence_level"/>
+        <result property="citationCount" column="citation_count"/>
+        <result property="promptTokens" column="prompt_tokens"/>
+        <result property="completionTokens" column="completion_tokens"/>
+        <result property="totalTokens" column="total_tokens"/>
+        <result property="isEstimated" column="is_estimated"/>
+        <result property="latencyMs" column="latency_ms"/>
+        <result property="modelName" column="model_name"/>
+        <result property="endpoint" column="endpoint"/>
+        <result property="success" column="success"/>
+        <result property="errorMessage" column="error_message"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <sql id="visiblePredicate">
+        <choose>
+            <when test="systemAdmin">
+                1 = 1
+            </when>
+            <otherwise>
+                EXISTS (
+                    SELECT 1
+                    FROM group_memberships gm
+                    WHERE gm.group_id = r.group_id
+                      AND gm.user_id = #{currentUserId}
+                      AND (r.user_id = #{currentUserId} OR gm.role = 'OWNER')
+                )
+            </otherwise>
+        </choose>
+    </sql>
+
+    <select id="selectVisibleRecords" resultMap="qaRecordEntityMap">
+        SELECT r.id,
+               r.user_id,
+               r.group_id,
+               r.question,
+               r.answer,
+               r.answered,
+               r.reason_code,
+               r.reason_message,
+               r.evidence_level,
+               r.citation_count,
+               r.prompt_tokens,
+               r.completion_tokens,
+               r.total_tokens,
+               r.is_estimated,
+               r.latency_ms,
+               r.model_name,
+               r.endpoint,
+               r.success,
+               r.error_message,
+               r.created_at
+        FROM qa_records r
+        WHERE <include refid="visiblePredicate"/>
+        <if test="groupId != null">
+          AND r.group_id = #{groupId}
+        </if>
+        <if test="answered != null">
+          AND r.answered = #{answered}
+        </if>
+        ORDER BY r.created_at DESC, r.id DESC
+        LIMIT #{limit}
+        OFFSET #{offset}
+    </select>
+
+    <select id="countVisibleRecords" resultType="java.lang.Long">
+        SELECT COUNT(1)
+        FROM qa_records r
+        WHERE <include refid="visiblePredicate"/>
+        <if test="groupId != null">
+          AND r.group_id = #{groupId}
+        </if>
+        <if test="answered != null">
+          AND r.answered = #{answered}
+        </if>
+    </select>
+
+    <select id="selectVisibleRecord" resultMap="qaRecordEntityMap">
+        SELECT r.id,
+               r.user_id,
+               r.group_id,
+               r.question,
+               r.answer,
+               r.answered,
+               r.reason_code,
+               r.reason_message,
+               r.evidence_level,
+               r.citation_count,
+               r.prompt_tokens,
+               r.completion_tokens,
+               r.total_tokens,
+               r.is_estimated,
+               r.latency_ms,
+               r.model_name,
+               r.endpoint,
+               r.success,
+               r.error_message,
+               r.created_at
+        FROM qa_records r
+        WHERE r.id = #{recordId}
+          AND <include refid="visiblePredicate"/>
+    </select>
+</mapper>

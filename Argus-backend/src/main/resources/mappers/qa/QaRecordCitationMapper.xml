@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.argus.rag.qa.mapper.QaRecordCitationMapper">
+
+    <resultMap id="qaRecordCitationEntityMap" type="com.argus.rag.qa.model.entity.QaRecordCitationEntity">
+        <id property="id" column="id"/>
+        <result property="qaRecordId" column="qa_record_id"/>
+        <result property="documentId" column="document_id"/>
+        <result property="documentVersionId" column="document_version_id"/>
+        <result property="chunkId" column="chunk_id"/>
+        <result property="chunkIndex" column="chunk_index"/>
+        <result property="startChunkIndex" column="start_chunk_index"/>
+        <result property="endChunkIndex" column="end_chunk_index"/>
+        <result property="fileName" column="file_name"/>
+        <result property="score" column="score"/>
+        <result property="retrievalSource" column="retrieval_source"/>
+        <result property="vectorScore" column="vector_score"/>
+        <result property="keywordScore" column="keyword_score"/>
+        <result property="hybridScore" column="hybrid_score"/>
+        <result property="snippet" column="snippet"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <select id="selectByRecordId" resultMap="qaRecordCitationEntityMap">
+        SELECT id,
+               qa_record_id,
+               document_id,
+               document_version_id,
+               chunk_id,
+               chunk_index,
+               start_chunk_index,
+               end_chunk_index,
+               file_name,
+               score,
+               retrieval_source,
+               vector_score,
+               keyword_score,
+               hybrid_score,
+               snippet,
+               created_at
+        FROM qa_record_citations
+        WHERE qa_record_id = #{recordId}
+        ORDER BY id ASC
+    </select>
+</mapper>

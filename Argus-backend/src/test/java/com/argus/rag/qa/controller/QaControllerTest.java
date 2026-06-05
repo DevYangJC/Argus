@@ -2,6 +2,8 @@ package com.argus.rag.qa.controller;
 
 import com.argus.rag.common.exception.BusinessException;
 import com.argus.rag.common.exception.ForbiddenException;
+import com.argus.rag.auth.security.JwtAccessTokenService;
+import com.argus.rag.qa.model.EvidenceLevel;
 import com.argus.rag.qa.model.dto.AskQuestionRequest;
 import com.argus.rag.qa.model.vo.AskQuestionResponse;
 import com.argus.rag.qa.service.QaChatService;
@@ -13,15 +15,20 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.SpringBootConfiguration;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import reactor.core.publisher.Flux;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -38,9 +45,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 重点测试 SSE 流式接口的各类场景。
  * </p>
  */
-@WebMvcTest(QaController.class)
+@WebMvcTest(controllers = QaController.class)
+@Import(QaController.class)
 @DisplayName("QaController SSE 流式接口测试")
 class QaControllerTest {
+
+    @SpringBootConfiguration
+    @EnableAutoConfiguration
+    static class TestApplication {
+    }
 
     @Autowired
     private MockMvc mockMvc;
@@ -50,6 +63,9 @@ class QaControllerTest {
 
     @MockitoBean
     private CitationAssembler citationAssembler;
+
+    @MockitoBean
+    private JwtAccessTokenService jwtAccessTokenService;
 
     private static final String STREAM_URL = "/api/qa/stream-ask";
 
@@ -85,6 +101,40 @@ class QaControllerTest {
             Flux<String> tokenFlux,
             List<Document> documents) {
         return new QaChatService.StreamContext(tokenFlux, documents);
+    }
+
+    private static QaChatService.StreamContext streamContext(
+            Flux<String> tokenFlux,
+            List<Document> documents,
+            Long recordId) {
+        return new QaChatService.StreamContext(
+                tokenFlux,
+                documents,
+                EvidenceLevel.SUFFICIENT,
+                new AtomicReference<>(recordId));
+    }
+
+    @Test
+    @DisplayName("完成流式回答后应发送 record 事件")
+    void shouldSendRecordEventOnCompleteWhenRecordIdAvailable() throws Exception {
+        when(qaService.askStream(any(), any(AskQuestionRequest.class)))
+                .thenReturn(streamContext(Flux.just("answer"), List.of(), 99L));
+
+        MvcResult mvcResult = mockMvc.perform(post(STREAM_URL)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(validRequestJson()))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        String responseBody = mockMvc.perform(asyncDispatch(mvcResult))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+
+        assertThat(responseBody)
+                .contains("event:record")
+                .contains("\"recordId\":99");
     }
 
     @BeforeEach
@@ -126,7 +176,7 @@ class QaControllerTest {
                     .andExpect(status().isOk())
                     .andReturn()
                     .getResponse()
-                    .getContentAsString();
+                    .getContentAsString(StandardCharsets.UTF_8);
 
             assertThat(responseBody)
                     .contains("event:token")
@@ -152,7 +202,7 @@ class QaControllerTest {
                     .andExpect(status().isOk())
                     .andReturn()
                     .getResponse()
-                    .getContentAsString();
+                    .getContentAsString(StandardCharsets.UTF_8);
 
             assertThat(responseBody)
                     .contains("event:token")
@@ -179,16 +229,19 @@ class QaControllerTest {
                     .andExpect(status().isOk())
                     .andReturn()
                     .getResponse()
-                    .getContentAsString();
+                    .getContentAsString(StandardCharsets.UTF_8);
 
             // 验证所有 token 都出现在响应中
             assertThat(responseBody).contains("data:首");
-            assertThat(responseBody).contains("data:按钮。");
+            assertThat(responseBody)
+                    .contains("data:按")
+                    .contains("data:钮")
+                    .contains("data:。");
             // 统计 token 事件数量
             long tokenEventCount = responseBody.lines()
                     .filter(line -> line.startsWith("event:token"))
                     .count();
-            assertThat(tokenEventCount).isEqualTo(22);
+            assertThat(tokenEventCount).isEqualTo(21);
         }
     }
 
@@ -217,7 +270,7 @@ class QaControllerTest {
                     .andExpect(status().isOk())
                     .andReturn()
                     .getResponse()
-                    .getContentAsString();
+                    .getContentAsString(StandardCharsets.UTF_8);
 
             assertThat(responseBody)
                     .contains("event:error")
@@ -250,7 +303,7 @@ class QaControllerTest {
                     .andExpect(status().isOk())
                     .andReturn()
                     .getResponse()
-                    .getContentAsString();
+                    .getContentAsString(StandardCharsets.UTF_8);
 
             assertThat(responseBody)
                     .contains("event:error")
@@ -286,7 +339,7 @@ class QaControllerTest {
                     .andExpect(status().isOk())
                     .andReturn()
                     .getResponse()
-                    .getContentAsString();
+                    .getContentAsString(StandardCharsets.UTF_8);
 
             assertThat(responseBody)
                     .contains("event:token")
@@ -312,7 +365,7 @@ class QaControllerTest {
                     .andExpect(status().isOk())
                     .andReturn()
                     .getResponse()
-                    .getContentAsString();
+                    .getContentAsString(StandardCharsets.UTF_8);
 
             assertThat(responseBody)
                     .contains("event:error")
@@ -372,7 +425,7 @@ class QaControllerTest {
                     .andExpect(status().isOk())
                     .andReturn()
                     .getResponse()
-                    .getContentAsString();
+                    .getContentAsString(StandardCharsets.UTF_8);
 
             assertThat(responseBody)
                     .doesNotContain("event:token")

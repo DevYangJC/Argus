@@ -1,20 +1,26 @@
 package com.argus.rag.qa.service;
 
 import com.argus.rag.auth.CurrentUserService;
+import com.argus.rag.common.exception.BusinessException;
 import com.argus.rag.group.service.GroupMembershipService;
 import com.argus.rag.metrics.LlmEndpoint;
 import com.argus.rag.metrics.LlmModule;
 import com.argus.rag.metrics.collector.LlmUsageCollector;
 import com.argus.rag.metrics.cost.LlmCostCalculator;
 import com.argus.rag.metrics.model.dto.LlmUsageRecordDTO;
+import com.argus.rag.qa.model.EvidenceLevel;
 import com.argus.rag.qa.model.dto.AskQuestionRequest;
 import com.argus.rag.qa.model.vo.AskQuestionResponse;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.ai.document.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
 
 import java.math.BigDecimal;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * 知识问答入口服务。
@@ -29,12 +35,15 @@ public class QaService {
 
     private static final Logger log = LoggerFactory.getLogger(QaService.class);
     private static final String MODEL_NAME = "qwen-plus";
+    private static final String INSUFFICIENT_EVIDENCE_CODE = "INSUFFICIENT_EVIDENCE";
+    private static final String SYSTEM_ERROR_CODE = "SYSTEM_ERROR";
 
     private final GroupMembershipService groupMembershipService;
     private final QaChatService qaChatService;
     private final CurrentUserService currentUserService;
     private final LlmUsageCollector llmUsageCollector;
     private final LlmCostCalculator llmCostCalculator;
+    private final QaRecordPersistenceService qaRecordPersistenceService;
 
     /**
      * 构造函数。
@@ -50,12 +59,14 @@ public class QaService {
             QaChatService qaChatService,
             CurrentUserService currentUserService,
             LlmUsageCollector llmUsageCollector,
-            LlmCostCalculator llmCostCalculator) {
+            LlmCostCalculator llmCostCalculator,
+            QaRecordPersistenceService qaRecordPersistenceService) {
         this.groupMembershipService = groupMembershipService;
         this.qaChatService = qaChatService;
         this.currentUserService = currentUserService;
         this.llmUsageCollector = llmUsageCollector;
         this.llmCostCalculator = llmCostCalculator;
+        this.qaRecordPersistenceService = qaRecordPersistenceService;
     }
 
     /**
@@ -77,9 +88,44 @@ public class QaService {
 
         QaChatService.AskResult result = qaChatService.askWithUsage(groupId, askQuestionRequest.getQuestion());
 
+        Long recordId = saveQaRecord(
+                userId,
+                groupId,
+                askQuestionRequest.getQuestion(),
+                LlmEndpoint.QA_ASK,
+                result.response(),
+                result.evidenceLevel(),
+                result.usage(),
+                result.documents(),
+                true,
+                null
+        );
         recordUsage(userId, groupId, LlmEndpoint.QA_ASK, result.usage(), true, null);
 
-        return result.response();
+        return result.response().withRecordId(recordId);
+    }
+
+    /** 统一保存同步和流式 QA 记录，隐藏持久化服务的命令对象组装细节。 */
+    private Long saveQaRecord(Long userId, Long groupId, String question, String endpoint,
+                              AskQuestionResponse response,
+                              com.argus.rag.qa.model.EvidenceLevel evidenceLevel,
+                              QaChatService.UsageInfo usage,
+                              List<Document> documents,
+                              boolean success,
+                              String errorMessage) {
+        return qaRecordPersistenceService.saveCompleted(new QaRecordPersistenceService.SaveCommand(
+                userId,
+                groupId,
+                question,
+                endpoint,
+                MODEL_NAME,
+                response,
+                evidenceLevel,
+                usage,
+                documents == null ? List.of() : documents,
+                success,
+                errorMessage
+        ));
     }
 
     /**
@@ -104,9 +150,63 @@ public class QaService {
         groupMembershipService.requireGroupReadable(groupId);
         Long userId = currentUserService.getRequiredCurrentUser().userId();
 
-        return qaChatService.askStream(groupId, askQuestionRequest.getQuestion(), usage -> {
+        AtomicReference<QaChatService.UsageInfo> usageRef = new AtomicReference<>(
+                new QaChatService.UsageInfo(0, 0, 0, false, 0L));
+        QaChatService.StreamContext rawContext = qaChatService.askStream(groupId, askQuestionRequest.getQuestion(), usage -> {
+            usageRef.set(usage);
             recordUsage(userId, groupId, LlmEndpoint.QA_STREAM_ASK, usage, true, null);
         });
+        StringBuilder answerBuilder = new StringBuilder();
+        AtomicReference<Long> recordIdRef = new AtomicReference<>();
+        // 包装原始 token 流：边推送边收集完整回答，结束后再落 QA 记录。
+        Flux<String> persistedTokenStream = rawContext.tokenStream()
+                .doOnNext(answerBuilder::append)
+                .doOnComplete(() -> {
+                    AskQuestionResponse response = AskQuestionResponse.answered(
+                            answerBuilder.toString(),
+                            List.of());
+                    Long recordId = saveQaRecord(
+                            userId,
+                            groupId,
+                            askQuestionRequest.getQuestion(),
+                            LlmEndpoint.QA_STREAM_ASK,
+                            response,
+                            rawContext.evidenceLevel(),
+                            usageRef.get(),
+                            rawContext.documents(),
+                            true,
+                            null
+                    );
+                    recordIdRef.set(recordId);
+                })
+                .doOnError(error -> {
+                    // 无证据属于业务拒答，其它异常记录为系统失败。
+                    boolean insufficientEvidence = error instanceof BusinessException
+                            && error.getMessage() != null
+                            && error.getMessage().startsWith(INSUFFICIENT_EVIDENCE_CODE);
+                    String message = error.getMessage() != null ? error.getMessage() : error.getClass().getSimpleName();
+                    AskQuestionResponse response = insufficientEvidence
+                            ? AskQuestionResponse.unanswered(INSUFFICIENT_EVIDENCE_CODE, message, List.of())
+                            : AskQuestionResponse.unanswered(SYSTEM_ERROR_CODE, message, List.of());
+                    Long recordId = saveQaRecord(
+                            userId,
+                            groupId,
+                            askQuestionRequest.getQuestion(),
+                            LlmEndpoint.QA_STREAM_ASK,
+                            response,
+                            insufficientEvidence ? EvidenceLevel.NONE : rawContext.evidenceLevel(),
+                            usageRef.get(),
+                            rawContext.documents(),
+                            insufficientEvidence,
+                            insufficientEvidence ? null : message
+                    );
+                    recordIdRef.set(recordId);
+                });
+        return new QaChatService.StreamContext(
+                persistedTokenStream,
+                rawContext.documents(),
+                rawContext.evidenceLevel(),
+                recordIdRef);
     }
 
     private void recordUsage(Long userId, Long groupId, String endpoint,

@@ -70,7 +70,14 @@ public class QaChatService {
         /**
          * 带用量信息的问答结果。
          */
-        public record AskResult(AskQuestionResponse response, UsageInfo usage) {
+        public record AskResult(
+                        AskQuestionResponse response,
+                        UsageInfo usage,
+                        EvidenceLevel evidenceLevel,
+                        List<Document> documents) {
+                public AskResult(AskQuestionResponse response, UsageInfo usage) {
+                        this(response, usage, null, List.of());
+                }
         }
 
         /**
@@ -143,7 +150,9 @@ public class QaChatService {
                                         groupId, elapsedMs);
                         return new AskResult(
                                         AskQuestionResponse.unanswered(INSUFFICIENT_CODE, INSUFFICIENT_MESSAGE, List.of()),
-                                        new UsageInfo(0, 0, 0, false, elapsedMs));
+                                        new UsageInfo(0, 0, 0, false, elapsedMs),
+                                        evidenceBundle.evidenceLevel(),
+                                        documents);
                 }
                 LlmCallResult result = getStructuredAnswer(groupId, question, evidenceBundle);
                 long latencyMs = System.currentTimeMillis() - startMs;
@@ -152,7 +161,9 @@ public class QaChatService {
                         return new AskResult(
                                         AskQuestionResponse.unanswered(FORMAT_ERROR_CODE, FORMAT_ERROR_MESSAGE, List.of()),
                                         new UsageInfo(result.usage.promptTokens(), result.usage.completionTokens(),
-                                                        result.usage.totalTokens(), result.usage.estimated(), latencyMs));
+                                                        result.usage.totalTokens(), result.usage.estimated(), latencyMs),
+                                        evidenceBundle.evidenceLevel(),
+                                        documents);
                 }
                 if (!result.output().answered() || !StringUtils.hasText(result.output().answer())) {
                         log.info("模型拒答: groupId={}, reasonCode={}, reasonMessage={}",
@@ -161,7 +172,9 @@ public class QaChatService {
                                         AskQuestionResponse.unanswered(result.output().reasonCode(),
                                                         result.output().reasonMessage(), List.of()),
                                         new UsageInfo(result.usage.promptTokens(), result.usage.completionTokens(),
-                                                        result.usage.totalTokens(), result.usage.estimated(), latencyMs));
+                                                        result.usage.totalTokens(), result.usage.estimated(), latencyMs),
+                                        evidenceBundle.evidenceLevel(),
+                                        documents);
                 }
                 long elapsedMs = (System.nanoTime() - startNano) / 1_000_000;
                 log.info("问答请求完成: groupId={}, answerLength={}, citationCount={}, elapsedMs={}",
@@ -171,7 +184,9 @@ public class QaChatService {
                                                 result.output().answer().trim(),
                                                 citationAssembler.assembleDocuments(documents)),
                                 new UsageInfo(result.usage.promptTokens(), result.usage.completionTokens(),
-                                                result.usage.totalTokens(), result.usage.estimated(), latencyMs));
+                                                result.usage.totalTokens(), result.usage.estimated(), latencyMs),
+                                evidenceBundle.evidenceLevel(),
+                                documents);
         }
 
         /**
@@ -267,7 +282,19 @@ public class QaChatService {
          * @param tokenStream 大模型生成的 token 流，每个元素为一个文本片段
          * @param documents   检索到的文档列表，用于后续组装引用来源
          */
-        public record StreamContext(Flux<String> tokenStream, List<Document> documents) {
+        public record StreamContext(Flux<String> tokenStream,
+                                    List<Document> documents,
+                                    EvidenceLevel evidenceLevel,
+                                    // 流结束后由 QaService 回填的持久化记录 ID。
+                                    java.util.concurrent.atomic.AtomicReference<Long> recordIdRef) {
+                public StreamContext(Flux<String> tokenStream, List<Document> documents) {
+                        this(tokenStream, documents, null, new java.util.concurrent.atomic.AtomicReference<>());
+                }
+
+                /** 获取流完成后持久化生成的 QA 记录 ID。 */
+                public Long recordId() {
+                        return recordIdRef == null ? null : recordIdRef.get();
+                }
         }
 
         /**
@@ -315,7 +342,9 @@ public class QaChatService {
                         return new StreamContext(
                                         Flux.error(new BusinessException(
                                                         INSUFFICIENT_CODE + ": " + INSUFFICIENT_MESSAGE)),
-                                        List.of());
+                                        List.of(),
+                                        evidenceBundle.evidenceLevel(),
+                                        new java.util.concurrent.atomic.AtomicReference<>());
                 }
 
                 Prompt userPrompt = createUserPrompt(question, evidenceBundle);
@@ -371,7 +400,8 @@ public class QaChatService {
                                 })
                                 .doOnError(error -> log.error("流式问答异常: groupId={}", groupId, error));
 
-                return new StreamContext(tokenFlux, documents);
+                return new StreamContext(tokenFlux, documents, evidenceBundle.evidenceLevel(),
+                                new java.util.concurrent.atomic.AtomicReference<>());
         }
 
         /**

@@ -23,7 +23,9 @@ public record AskQuestionResponse(
         String answer,
         String reasonCode,
         String reasonMessage,
-        List<Citation> citations
+        List<Citation> citations,
+        /** 持久化后的 QA 问答记录 ID，保存失败时为空。 */
+        Long recordId
 ) {
 
     /**
@@ -34,7 +36,7 @@ public record AskQuestionResponse(
      * @return 已回答的响应对象
      */
     public static AskQuestionResponse answered(String answer, List<Citation> citations) {
-        return new AskQuestionResponse(true, answer, null, null, citations);
+        return new AskQuestionResponse(true, answer, null, null, citations, null);
     }
 
     /**
@@ -50,7 +52,12 @@ public record AskQuestionResponse(
             String reasonMessage,
             List<Citation> citations
     ) {
-        return new AskQuestionResponse(false, null, reasonCode, reasonMessage, citations);
+        return new AskQuestionResponse(false, null, reasonCode, reasonMessage, citations, null);
+    }
+
+    /** 返回一份带持久化记录 ID 的响应对象。 */
+    public AskQuestionResponse withRecordId(Long recordId) {
+        return new AskQuestionResponse(answered, answer, reasonCode, reasonMessage, citations, recordId);
     }
 
     /**
