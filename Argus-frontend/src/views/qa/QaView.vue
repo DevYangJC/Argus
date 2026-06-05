@@ -104,6 +104,7 @@ async function handleAsk(text: string) {
 
   asking.value = true
   let citationsReceived = false
+  let recordId: number | null = null
   try {
     let streamedContent = ''
 
@@ -142,6 +143,12 @@ async function handleAsk(text: string) {
             citations: [],
           })
         },
+        onRecord(id: number) {
+          recordId = id
+          updateMessage(sessionId, assistantId, {
+            recordId: id,
+          })
+        },
       },
     )
 
@@ -154,6 +161,7 @@ async function handleAsk(text: string) {
         reasonCode: null,
         reasonMessage: null,
         citations: [],
+        recordId,
       })
     }
   } catch (err) {

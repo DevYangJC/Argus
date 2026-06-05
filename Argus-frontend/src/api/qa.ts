@@ -1,4 +1,4 @@
-import http from './http'
+import http, { type ApiResponse } from './http'
 
 // ─────────────────────────────────────────────
 // 类型定义
@@ -55,6 +55,7 @@ export interface AskQuestionResponse {
   reasonMessage: string | null
   /** 引用来源列表（支持答案溯源） */
   citations: CitationItem[]
+  recordId: number | null
 }
 
 /**
@@ -68,8 +69,77 @@ export interface QaStreamHandlers {
   onCitations: (citations: CitationItem[]) => void
   /** 发生错误时回调 */
   onError: (message: string) => void
+  onRecord?: (recordId: number) => void
   /** 可用于中断流式连接的 AbortSignal */
   signal?: AbortSignal
+}
+
+export interface QaRecordListQuery {
+  groupId?: number
+  answered?: boolean
+  page?: number
+  pageSize?: number
+}
+
+export interface QaRecordListItem {
+  id: number
+  userId: number
+  groupId: number
+  question: string
+  answered: boolean
+  answerPreview: string
+  reasonCode: string | null
+  evidenceLevel: string | null
+  citationCount: number
+  latencyMs: number
+  createdAt: string
+}
+
+export interface QaRecordCitation {
+  documentId: number | null
+  documentVersionId: number | null
+  chunkId: number | null
+  chunkIndex: number | null
+  startChunkIndex: number | null
+  endChunkIndex: number | null
+  fileName: string
+  score: number | null
+  retrievalSource: string | null
+  vectorScore: number | null
+  keywordScore: number | null
+  hybridScore: number | null
+  snippet: string | null
+}
+
+export interface QaRecordDetail {
+  id: number
+  userId: number
+  groupId: number
+  question: string
+  answer: string | null
+  answered: boolean
+  reasonCode: string | null
+  reasonMessage: string | null
+  evidenceLevel: string | null
+  citationCount: number
+  promptTokens: number
+  completionTokens: number
+  totalTokens: number
+  isEstimated: boolean
+  latencyMs: number
+  modelName: string | null
+  endpoint: string
+  success: boolean
+  errorMessage: string | null
+  createdAt: string
+  citations: QaRecordCitation[]
+}
+
+export interface QaRecordPage {
+  items: QaRecordListItem[]
+  total: number
+  page: number
+  pageSize: number
 }
 
 // ─────────────────────────────────────────────
@@ -98,7 +168,18 @@ export async function askQuestion(payload: AskQuestionPayload): Promise<AskQuest
     reasonCode: data.reasonCode ?? null,
     reasonMessage: data.reasonMessage ?? null,
     citations: data.citations ?? [],
+    recordId: data.recordId ?? null,
   }
+}
+
+export async function listQaRecords(query: QaRecordListQuery = {}): Promise<QaRecordPage> {
+  const { data } = await http.get<ApiResponse<QaRecordPage>>('/qa/records', { params: query })
+  return data.data
+}
+
+export async function getQaRecord(recordId: number): Promise<QaRecordDetail> {
+  const { data } = await http.get<ApiResponse<QaRecordDetail>>(`/qa/records/${recordId}`)
+  return data.data
 }
 
 /**
@@ -226,6 +307,17 @@ function dispatchQaSseEvent(rawEvent: string, handlers: QaStreamHandlers): void 
         handlers.onError(parsed.message ?? '流式问答服务内部错误')
       } catch {
         handlers.onError(rawData)
+      }
+      break
+    }
+    case 'record': {
+      try {
+        const parsed = JSON.parse(rawData) as { recordId?: number }
+        if (typeof parsed.recordId === 'number') {
+          handlers.onRecord?.(parsed.recordId)
+        }
+      } catch {
+        // Ignore malformed record events; answer delivery is already complete.
       }
       break
     }

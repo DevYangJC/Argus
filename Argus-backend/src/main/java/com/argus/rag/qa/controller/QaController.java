@@ -124,6 +124,10 @@ public class QaController {
                             if (!citations.isEmpty()) {
                                 emitter.send(SseEmitter.event().name("citations").data(citations));
                             }
+                            Long recordId = streamContext.recordId();
+                            if (recordId != null) {
+                                emitter.send(SseEmitter.event().name("record").data(Map.of("recordId", recordId)));
+                            }
                             emitter.complete();
                         } catch (IOException e) {
                             log.error("SSE 发送 citations 失败", e);

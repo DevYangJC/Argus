@@ -13,6 +13,7 @@ export interface QaMessage {
   reasonCode?: string | null
   reasonMessage?: string | null
   citations?: CitationItem[]
+  recordId?: number | null
 }
 
 export interface QaSession {

@@ -601,3 +601,106 @@ CREATE INDEX IF NOT EXISTS idx_llm_usage_module_created
 CREATE INDEX IF NOT EXISTS idx_llm_usage_created_at
     ON llm_usage_records (created_at);
 
+
+-- ============================================================
+-- QA records persistence (V5.0)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS qa_records (
+    id                  BIGSERIAL       PRIMARY KEY,
+    user_id             BIGINT          NOT NULL,
+    group_id            BIGINT          NOT NULL,
+    question            TEXT            NOT NULL,
+    answer              TEXT,
+    answered            BOOLEAN         NOT NULL DEFAULT FALSE,
+    reason_code         VARCHAR(64),
+    reason_message      TEXT,
+    evidence_level      VARCHAR(32),
+    citation_count      INTEGER         NOT NULL DEFAULT 0,
+    prompt_tokens       INTEGER         NOT NULL DEFAULT 0,
+    completion_tokens   INTEGER         NOT NULL DEFAULT 0,
+    total_tokens        INTEGER         NOT NULL DEFAULT 0,
+    is_estimated        BOOLEAN         NOT NULL DEFAULT FALSE,
+    latency_ms          BIGINT          NOT NULL DEFAULT 0,
+    model_name          VARCHAR(64),
+    endpoint            VARCHAR(64)     NOT NULL,
+    success             BOOLEAN         NOT NULL DEFAULT TRUE,
+    error_message       TEXT,
+    created_at          TIMESTAMP       NOT NULL DEFAULT now(),
+
+    CONSTRAINT fk_qa_record_user  FOREIGN KEY (user_id)  REFERENCES users (id),
+    CONSTRAINT fk_qa_record_group FOREIGN KEY (group_id) REFERENCES groups (id)
+);
+
+CREATE TABLE IF NOT EXISTS qa_record_citations (
+    id                   BIGSERIAL       PRIMARY KEY,
+    qa_record_id         BIGINT          NOT NULL,
+    document_id          BIGINT,
+    document_version_id  BIGINT,
+    chunk_id             BIGINT,
+    chunk_index          INTEGER,
+    start_chunk_index    INTEGER,
+    end_chunk_index      INTEGER,
+    file_name            VARCHAR(512)    NOT NULL,
+    score                DOUBLE PRECISION,
+    retrieval_source     VARCHAR(32),
+    vector_score         DOUBLE PRECISION,
+    keyword_score        DOUBLE PRECISION,
+    hybrid_score         DOUBLE PRECISION,
+    snippet              TEXT,
+    created_at           TIMESTAMP       NOT NULL DEFAULT now(),
+
+    CONSTRAINT fk_qa_record_citation_record
+        FOREIGN KEY (qa_record_id) REFERENCES qa_records (id) ON DELETE CASCADE
+);
+
+COMMENT ON TABLE qa_records IS 'QA 问答记录表，保存每次知识库问答的完整结果和用量信息';
+COMMENT ON COLUMN qa_records.id IS '问答记录主键';
+COMMENT ON COLUMN qa_records.user_id IS '提问用户 ID';
+COMMENT ON COLUMN qa_records.group_id IS '问答发生的知识库群组 ID';
+COMMENT ON COLUMN qa_records.question IS '用户原始问题';
+COMMENT ON COLUMN qa_records.answer IS '模型回答正文，拒答或失败时可为空';
+COMMENT ON COLUMN qa_records.answered IS '是否成功回答问题';
+COMMENT ON COLUMN qa_records.reason_code IS '拒答或失败原因编码';
+COMMENT ON COLUMN qa_records.reason_message IS '拒答或失败原因说明';
+COMMENT ON COLUMN qa_records.evidence_level IS '检索证据充分性等级';
+COMMENT ON COLUMN qa_records.citation_count IS '保存的引用快照数量';
+COMMENT ON COLUMN qa_records.prompt_tokens IS '输入 token 数';
+COMMENT ON COLUMN qa_records.completion_tokens IS '输出 token 数';
+COMMENT ON COLUMN qa_records.total_tokens IS '总 token 数';
+COMMENT ON COLUMN qa_records.is_estimated IS 'token 用量是否为估算值';
+COMMENT ON COLUMN qa_records.latency_ms IS '问答耗时，单位毫秒';
+COMMENT ON COLUMN qa_records.model_name IS '调用的大模型名称';
+COMMENT ON COLUMN qa_records.endpoint IS '触发记录的接口端点';
+COMMENT ON COLUMN qa_records.success IS '本次问答流程是否成功完成';
+COMMENT ON COLUMN qa_records.error_message IS '系统异常信息，业务拒答时通常为空';
+COMMENT ON COLUMN qa_records.created_at IS '记录创建时间';
+
+COMMENT ON TABLE qa_record_citations IS 'QA 引用快照表，保存回答时实际使用的检索证据';
+COMMENT ON COLUMN qa_record_citations.id IS '引用快照主键';
+COMMENT ON COLUMN qa_record_citations.qa_record_id IS '所属 QA 问答记录 ID';
+COMMENT ON COLUMN qa_record_citations.document_id IS '来源文档 ID';
+COMMENT ON COLUMN qa_record_citations.document_version_id IS '来源文档版本 ID，当前系统未启用版本时可为空';
+COMMENT ON COLUMN qa_record_citations.chunk_id IS '来源切片 ID';
+COMMENT ON COLUMN qa_record_citations.chunk_index IS '切片在文档中的序号';
+COMMENT ON COLUMN qa_record_citations.start_chunk_index IS '合并证据片段的起始切片序号';
+COMMENT ON COLUMN qa_record_citations.end_chunk_index IS '合并证据片段的结束切片序号';
+COMMENT ON COLUMN qa_record_citations.file_name IS '来源文件名';
+COMMENT ON COLUMN qa_record_citations.score IS '最终相关性得分';
+COMMENT ON COLUMN qa_record_citations.retrieval_source IS '检索来源类型，如 VECTOR、KEYWORD、BOTH';
+COMMENT ON COLUMN qa_record_citations.vector_score IS '向量检索得分';
+COMMENT ON COLUMN qa_record_citations.keyword_score IS '关键词检索得分';
+COMMENT ON COLUMN qa_record_citations.hybrid_score IS '混合检索融合得分';
+COMMENT ON COLUMN qa_record_citations.snippet IS '回答时使用的证据文本快照';
+COMMENT ON COLUMN qa_record_citations.created_at IS '快照创建时间';
+
+CREATE INDEX IF NOT EXISTS idx_qa_records_user_created
+    ON qa_records (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_qa_records_group_created
+    ON qa_records (group_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_qa_records_group_user_created
+    ON qa_records (group_id, user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_qa_records_answered_created
+    ON qa_records (answered, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_qa_record_citations_record
+    ON qa_record_citations (qa_record_id, id);
