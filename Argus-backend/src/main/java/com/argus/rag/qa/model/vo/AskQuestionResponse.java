@@ -24,9 +24,21 @@ public record AskQuestionResponse(
         String reasonCode,
         String reasonMessage,
         List<Citation> citations,
+        EvidenceOverview evidenceOverview,
         /** 持久化后的 QA 问答记录 ID，保存失败时为空。 */
         Long recordId
 ) {
+
+    public AskQuestionResponse(
+            boolean answered,
+            String answer,
+            String reasonCode,
+            String reasonMessage,
+            List<Citation> citations,
+            Long recordId
+    ) {
+        this(answered, answer, reasonCode, reasonMessage, citations, null, recordId);
+    }
 
     /**
      * 创建已回答的响应。
@@ -36,7 +48,7 @@ public record AskQuestionResponse(
      * @return 已回答的响应对象
      */
     public static AskQuestionResponse answered(String answer, List<Citation> citations) {
-        return new AskQuestionResponse(true, answer, null, null, citations, null);
+        return new AskQuestionResponse(true, answer, null, null, citations, null, null);
     }
 
     /**
@@ -52,12 +64,17 @@ public record AskQuestionResponse(
             String reasonMessage,
             List<Citation> citations
     ) {
-        return new AskQuestionResponse(false, null, reasonCode, reasonMessage, citations, null);
+        return new AskQuestionResponse(false, null, reasonCode, reasonMessage, citations, null, null);
     }
 
     /** 返回一份带持久化记录 ID 的响应对象。 */
     public AskQuestionResponse withRecordId(Long recordId) {
-        return new AskQuestionResponse(answered, answer, reasonCode, reasonMessage, citations, recordId);
+        return new AskQuestionResponse(answered, answer, reasonCode, reasonMessage, citations, evidenceOverview, recordId);
+    }
+
+    /** 返回一份带证据覆盖概览的响应对象。 */
+    public AskQuestionResponse withEvidenceOverview(EvidenceOverview evidenceOverview) {
+        return new AskQuestionResponse(answered, answer, reasonCode, reasonMessage, citations, evidenceOverview, recordId);
     }
 
     /**
@@ -76,6 +93,40 @@ public record AskQuestionResponse(
             Integer chunkIndex,
             String fileName,
             double score,
+            String snippet
+    ) {
+    }
+
+    /** 本次回答的证据覆盖概览，用于解释模型实际看到了哪些文档和切片。 */
+    public record EvidenceOverview(
+            int documentCount,
+            int evidenceCount,
+            String coverageMode,
+            List<DocumentEvidenceGroup> groups,
+            List<String> warnings
+    ) {
+    }
+
+    /** 按文档聚合后的证据统计。 */
+    public record DocumentEvidenceGroup(
+            Long documentId,
+            String fileName,
+            int evidenceCount,
+            double topScore,
+            List<String> retrievalSources,
+            List<EvidenceSnippet> snippets
+    ) {
+    }
+
+    /** 单条证据切片在覆盖面板中的摘要。 */
+    public record EvidenceSnippet(
+            String evidenceId,
+            Long chunkId,
+            Integer chunkIndex,
+            Integer startChunkIndex,
+            Integer endChunkIndex,
+            double score,
+            String retrievalSource,
             String snippet
     ) {
     }

@@ -23,6 +23,34 @@ export interface CitationItem {
   snippet: string | null
 }
 
+export interface EvidenceSnippet {
+  evidenceId: string | null
+  chunkId: number | null
+  chunkIndex: number | null
+  startChunkIndex: number | null
+  endChunkIndex: number | null
+  score: number
+  retrievalSource: string
+  snippet: string | null
+}
+
+export interface DocumentEvidenceGroup {
+  documentId: number | null
+  fileName: string
+  evidenceCount: number
+  topScore: number
+  retrievalSources: string[]
+  snippets: EvidenceSnippet[]
+}
+
+export interface EvidenceOverview {
+  documentCount: number
+  evidenceCount: number
+  coverageMode: string
+  groups: DocumentEvidenceGroup[]
+  warnings: string[]
+}
+
 /**
  * 问答请求参数
  * 对应后端 AskQuestionRequest
@@ -55,6 +83,7 @@ export interface AskQuestionResponse {
   reasonMessage: string | null
   /** 引用来源列表（支持答案溯源） */
   citations: CitationItem[]
+  evidenceOverview: EvidenceOverview | null
   recordId: number | null
 }
 
@@ -67,6 +96,7 @@ export interface QaStreamHandlers {
   onToken: (text: string) => void
   /** 流式回答结束后接收到的引用来源列表 */
   onCitations: (citations: CitationItem[]) => void
+  onEvidenceOverview?: (overview: EvidenceOverview | null) => void
   /** 发生错误时回调 */
   onError: (message: string) => void
   onRecord?: (recordId: number) => void
@@ -132,6 +162,7 @@ export interface QaRecordDetail {
   success: boolean
   errorMessage: string | null
   createdAt: string
+  evidenceOverview: EvidenceOverview | null
   citations: QaRecordCitation[]
 }
 
@@ -168,6 +199,7 @@ export async function askQuestion(payload: AskQuestionPayload): Promise<AskQuest
     reasonCode: data.reasonCode ?? null,
     reasonMessage: data.reasonMessage ?? null,
     citations: data.citations ?? [],
+    evidenceOverview: data.evidenceOverview ?? null,
     recordId: data.recordId ?? null,
   }
 }
@@ -298,6 +330,14 @@ function dispatchQaSseEvent(rawEvent: string, handlers: QaStreamHandlers): void 
         handlers.onCitations(citations)
       } catch {
         handlers.onCitations([])
+      }
+      break
+    }
+    case 'evidence-overview': {
+      try {
+        handlers.onEvidenceOverview?.(JSON.parse(rawData) as EvidenceOverview)
+      } catch {
+        handlers.onEvidenceOverview?.(null)
       }
       break
     }

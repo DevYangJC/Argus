@@ -9,6 +9,7 @@ import com.argus.rag.qa.model.vo.AskQuestionResponse;
 import com.argus.rag.qa.service.QaChatService;
 import com.argus.rag.qa.service.QaService;
 import com.argus.rag.qa.support.CitationAssembler;
+import com.argus.rag.qa.support.EvidenceOverviewAssembler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -63,6 +64,9 @@ class QaControllerTest {
 
     @MockitoBean
     private CitationAssembler citationAssembler;
+
+    @MockitoBean
+    private EvidenceOverviewAssembler evidenceOverviewAssembler;
 
     @MockitoBean
     private JwtAccessTokenService jwtAccessTokenService;
@@ -141,6 +145,7 @@ class QaControllerTest {
     void setUp() {
         // 默认 CitationAssembler 返回空列表
         when(citationAssembler.assembleDocuments(any())).thenReturn(List.of());
+        when(evidenceOverviewAssembler.assemble(any())).thenReturn(null);
     }
 
     // ──────────────────────────────────────────────
@@ -159,8 +164,29 @@ class QaControllerTest {
                             "doc.pdf", "score", 0.95)));
             List<AskQuestionResponse.Citation> citations = List.of(
                     new AskQuestionResponse.Citation(1L, 10L, 0, "doc.pdf", 0.95, null));
+            AskQuestionResponse.EvidenceOverview overview = new AskQuestionResponse.EvidenceOverview(
+                    1,
+                    1,
+                    "RELEVANCE_ONLY",
+                    List.of(new AskQuestionResponse.DocumentEvidenceGroup(
+                            1L,
+                            "doc.pdf",
+                            1,
+                            0.95,
+                            List.of("BOTH"),
+                            List.of(new AskQuestionResponse.EvidenceSnippet(
+                                    "E1",
+                                    10L,
+                                    0,
+                                    0,
+                                    0,
+                                    0.95,
+                                    "BOTH",
+                                    "璇佹嵁鍐呭")))),
+                    List.of());
 
             when(citationAssembler.assembleDocuments(documents)).thenReturn(citations);
+            when(evidenceOverviewAssembler.assemble(documents)).thenReturn(overview);
             when(qaService.askStream(any(), any(AskQuestionRequest.class)))
                     .thenReturn(streamContext(
                             Flux.just("上传流程", "分", "三个阶段", "：", "准备、", "上传、", "验证。"),
@@ -183,6 +209,8 @@ class QaControllerTest {
                     .contains("data:上传流程")
                     .contains("data:三个阶段")
                     .contains("event:citations")
+                    .contains("event:evidence-overview")
+                    .contains("RELEVANCE_ONLY")
                     .contains("doc.pdf");
         }
 

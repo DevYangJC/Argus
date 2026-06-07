@@ -10,6 +10,7 @@ import com.argus.rag.qa.model.entity.QaRecordEntity;
 import com.argus.rag.qa.model.vo.QaRecordDetailVO;
 import com.argus.rag.qa.model.vo.QaRecordListItemVO;
 import com.argus.rag.qa.model.vo.QaRecordPageVO;
+import com.argus.rag.qa.support.EvidenceOverviewAssembler;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -27,13 +28,16 @@ public class QaRecordQueryService {
     private final CurrentUserService currentUserService;
     private final QaRecordMapper qaRecordMapper;
     private final QaRecordCitationMapper qaRecordCitationMapper;
+    private final EvidenceOverviewAssembler evidenceOverviewAssembler;
 
     public QaRecordQueryService(CurrentUserService currentUserService,
                                 QaRecordMapper qaRecordMapper,
-                                QaRecordCitationMapper qaRecordCitationMapper) {
+                                QaRecordCitationMapper qaRecordCitationMapper,
+                                EvidenceOverviewAssembler evidenceOverviewAssembler) {
         this.currentUserService = currentUserService;
         this.qaRecordMapper = qaRecordMapper;
         this.qaRecordCitationMapper = qaRecordCitationMapper;
+        this.evidenceOverviewAssembler = evidenceOverviewAssembler;
     }
 
     /** 分页查询当前用户可见的 QA 历史记录。 */
@@ -126,6 +130,7 @@ public class QaRecordQueryService {
                 record.getSuccess(),
                 record.getErrorMessage(),
                 record.getCreatedAt(),
+                evidenceOverviewAssembler.assembleHistoryCitations(citations),
                 citations
         );
     }

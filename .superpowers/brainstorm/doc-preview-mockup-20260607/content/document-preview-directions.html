@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Argus 文档预览优化方向</title>
+  <style>
+    :root {
+      --ink: #172033;
+      --muted: #71809a;
+      --line: #dfe7f1;
+      --blue: #2f7fd1;
+      --teal: #1ebea5;
+      --red: #ff6b6b;
+      --paper: #ffffff;
+      --wash: #f4f8fb;
+      --soft: #eef5f8;
+      --shadow: 0 22px 60px rgba(24, 45, 80, 0.16);
+      font-family: "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(120deg, rgba(47, 127, 209, 0.08), rgba(30, 190, 165, 0.07)),
+        #f7fafc;
+    }
+
+    .page {
+      max-width: 1520px;
+      margin: 0 auto;
+      padding: 28px;
+    }
+
+    .intro {
+      display: flex;
+      justify-content: space-between;
+      gap: 28px;
+      align-items: end;
+      margin-bottom: 22px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      letter-spacing: 0;
+    }
+
+    .intro p {
+      margin: 0;
+      max-width: 760px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .legend {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      color: #506079;
+      font-size: 13px;
+    }
+
+    .pill {
+      padding: 7px 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.8);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .option {
+      border: 1px solid rgba(158, 174, 196, 0.46);
+      background: rgba(255,255,255,0.72);
+      border-radius: 18px;
+      padding: 14px;
+      box-shadow: 0 12px 32px rgba(29, 50, 80, 0.08);
+      cursor: pointer;
+      transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+    }
+
+    .option:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 18px 42px rgba(29, 50, 80, 0.13);
+      border-color: rgba(47, 127, 209, 0.65);
+    }
+
+    .option.selected {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 4px rgba(47, 127, 209, 0.12), 0 18px 42px rgba(29, 50, 80, 0.13);
+    }
+
+    .option-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .option-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 800;
+      font-size: 17px;
+    }
+
+    .letter {
+      display: grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      color: #fff;
+      background: var(--blue);
+      font-size: 13px;
+    }
+
+    .score {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .mock-shell {
+      height: 700px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #edf4f8;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .app-bg {
+      position: absolute;
+      inset: 0;
+      padding: 18px;
+      background:
+        linear-gradient(90deg, rgba(255,255,255,0.86), rgba(247,251,253,0.86)),
+        repeating-linear-gradient(0deg, transparent 0 61px, rgba(157,174,196,.16) 61px 62px);
+    }
+
+    .fake-panel {
+      height: 86px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.86);
+      margin-bottom: 12px;
+    }
+
+    .fake-table {
+      height: 270px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.9);
+    }
+
+    .dialog {
+      position: absolute;
+      inset: 42px 34px 34px;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+      border-radius: 12px;
+      border: 1px solid rgba(208, 218, 230, 0.9);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .dialog.compact {
+      inset: 48px 48px 42px;
+    }
+
+    .dialog.reader {
+      inset: 24px 24px 22px;
+      border-radius: 10px;
+    }
+
+    .dialog.workbench {
+      inset: 18px;
+      border-radius: 10px;
+    }
+
+    .modal-top {
+      min-height: 64px;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      background: rgba(255,255,255,.96);
+    }
+
+    .file-title {
+      min-width: 0;
+    }
+
+    .file-title strong {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 16px;
+    }
+
+    .file-meta {
+      margin-top: 5px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .tag {
+      padding: 3px 7px;
+      border-radius: 999px;
+      background: var(--soft);
+      color: #567;
+    }
+
+    .icon-btns { display: flex; gap: 8px; }
+
+    .icon {
+      display: grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      color: #60708a;
+      background: #fff;
+      font-size: 13px;
+    }
+
+    .content {
+      flex: 1;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .markdown {
+      height: 100%;
+      overflow: auto;
+      padding: 24px 34px 48px;
+      line-height: 1.85;
+      color: #2b3546;
+      font-size: 14px;
+    }
+
+    .markdown .frontmatter {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #f7fafc;
+      padding: 12px 14px;
+      color: #65758f;
+      font-size: 12px;
+      line-height: 1.7;
+      margin-bottom: 22px;
+    }
+
+    .markdown h2 {
+      font-size: 20px;
+      margin: 26px 0 10px;
+    }
+
+    .markdown p { margin: 10px 0; }
+
+    .note-img {
+      height: 76px;
+      margin: 16px 0;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background:
+        linear-gradient(90deg, rgba(255,255,255,.88), rgba(255,255,255,.72)),
+        linear-gradient(135deg, #dce9f5, #f3e7df 55%, #d9f1ed);
+      display: grid;
+      place-items: center;
+      color: #74839a;
+      font-size: 12px;
+    }
+
+    .reader-layout {
+      display: grid;
+      grid-template-columns: 1fr;
+      height: 100%;
+      background: #fbfcfd;
+    }
+
+    .reader .modal-top {
+      min-height: 82px;
+      padding: 18px 42px;
+      background: linear-gradient(180deg, #ffffff, #fbfcfd);
+    }
+
+    .reader .markdown {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 34px 44px 70px;
+      background: #fff;
+      font-size: 15px;
+      line-height: 1.9;
+    }
+
+    .reader .markdown .frontmatter {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 14px;
+      font-size: 12px;
+      margin-bottom: 28px;
+    }
+
+    .toc-layout {
+      height: 100%;
+      display: grid;
+      grid-template-columns: 180px minmax(0,1fr);
+      background: #fff;
+    }
+
+    .toc {
+      border-right: 1px solid var(--line);
+      background: #f8fbfd;
+      padding: 16px;
+      color: #66758e;
+      font-size: 12px;
+      overflow: hidden;
+    }
+
+    .toc h4 {
+      margin: 0 0 12px;
+      color: #243047;
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    .toc div {
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(223,231,241,.7);
+    }
+
+    .toc .active {
+      color: var(--blue);
+      font-weight: 800;
+    }
+
+    .workbench-layout {
+      display: grid;
+      grid-template-columns: 210px minmax(0, 1fr) 190px;
+      height: 100%;
+      background: #fff;
+    }
+
+    .side {
+      padding: 16px;
+      background: #f8fbfd;
+      border-right: 1px solid var(--line);
+      overflow: hidden;
+    }
+
+    .right {
+      border-left: 1px solid var(--line);
+      border-right: 0;
+    }
+
+    .side h4 {
+      margin: 0 0 12px;
+      font-size: 12px;
+      color: #243047;
+      text-transform: uppercase;
+    }
+
+    .side .row {
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(223,231,241,.75);
+      color: #687892;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .side .row strong {
+      display: block;
+      color: #25314a;
+      margin-bottom: 2px;
+    }
+
+    .workbench .markdown {
+      padding: 22px 30px 44px;
+    }
+
+    .caption {
+      margin: 12px 2px 0;
+      color: #5e6e86;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .caption strong {
+      color: #26334a;
+    }
+
+    @media (max-width: 1100px) {
+      .grid { grid-template-columns: 1fr; }
+      .mock-shell { height: 620px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="intro">
+      <div>
+        <h1>Argus 文档预览优化方向</h1>
+        <p>基于当前截图和 `DocumentPreviewModal.vue`，这里把改造方向拆成三种。你可以点选最喜欢的方案，也可以说想混搭哪几部分。</p>
+      </div>
+      <div class="legend">
+        <span class="pill">目标：可读性</span>
+        <span class="pill">目标：知识库管理效率</span>
+        <span class="pill">约束：Element Plus + Vue</span>
+      </div>
+    </section>
+
+    <section class="grid">
+      <article class="option" data-choice="a" onclick="selectOption(this)">
+        <div class="option-head">
+          <div class="option-title"><span class="letter">A</span>轻量修复版</div>
+          <span class="score">最快落地</span>
+        </div>
+        <div class="mock-shell">
+          <div class="app-bg">
+            <div class="fake-panel"></div>
+            <div class="fake-table"></div>
+          </div>
+          <div class="dialog compact">
+            <div class="modal-top">
+              <div class="file-title">
+                <strong>企微群聊机器人开发.md</strong>
+                <div class="file-meta"><span class="tag">Markdown</span><span>19.5 KB</span><span>2026-04-29</span></div>
+              </div>
+              <div class="icon-btns"><span class="icon">↓</span><span class="icon">×</span></div>
+            </div>
+            <div class="content">
+              <div class="markdown">
+                <div class="frontmatter">title: 一站式程序员学习交流社区<br>source: codefather.cn/course/...<br>author: 毛毛<br>tags: clippings</div>
+                <h2>分享一个用程序解决生活工作问题的真实案例</h2>
+                <p>说来惭愧，事情是这样的，在我们公司，每天都要轮流安排一名员工去楼层中间接水。</p>
+                <p>我想到了几种方法：每天大家轮流提醒、指定员工提醒、在企业微信日历里安排日程。</p>
+                <div class="note-img">图片 / 表格区域保持原始比例</div>
+                <p>这个方案保留弹窗，主要把标题栏、元信息卡片、正文行宽和滚动条打磨干净。</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="caption"><strong>适合：</strong>想尽快变好看，少改逻辑。把 720px 弹窗加宽到 860-960px，优化 Markdown 样式和状态区。</p>
+      </article>
+
+      <article class="option" data-choice="b" onclick="selectOption(this)">
+        <div class="option-head">
+          <div class="option-title"><span class="letter">B</span>阅读器版</div>
+          <span class="score">推荐</span>
+        </div>
+        <div class="mock-shell">
+          <div class="app-bg">
+            <div class="fake-panel"></div>
+            <div class="fake-table"></div>
+          </div>
+          <div class="dialog reader">
+            <div class="modal-top">
+              <div class="file-title">
+                <strong>企微群聊机器人开发.md</strong>
+                <div class="file-meta"><span class="tag">Markdown</span><span>就绪</span><span>上传者：毛毛</span><span>可下载</span></div>
+              </div>
+              <div class="icon-btns"><span class="icon">↗</span><span class="icon">↓</span><span class="icon">×</span></div>
+            </div>
+            <div class="reader-layout">
+              <div class="markdown">
+                <div class="frontmatter"><span>来源：codefather.cn</span><span>创建：2026-04-17</span><span>作者：毛毛</span><span>标签：clippings</span></div>
+                <h2>分享一个用程序解决生活工作问题的真实案例</h2>
+                <p>说来惭愧，事情是这样的，在我们公司，每天都要轮流安排一名员工去楼层中间接水。</p>
+                <p>但是由于大家每天都有自己的工作，经常出现忘记接水的情况，导致大家口渴难耐。</p>
+                <h2>怎么解决这个问题呢？</h2>
+                <p>我想到了几种方法：每天大家轮流提醒、指定员工提醒、在企业微信日历功能里安排日程。</p>
+                <div class="note-img">日程截图预览</div>
+                <p>阅读器版把背景压暗、正文居中、行宽固定，预览像真正的文档阅读页面。</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="caption"><strong>适合：</strong>RAG 知识库最常见场景，用户主要是读内容、确认解析结果。视觉更干净，也不牺牲下载和全屏动作。</p>
+      </article>
+
+      <article class="option" data-choice="c" onclick="selectOption(this)">
+        <div class="option-head">
+          <div class="option-title"><span class="letter">C</span>工作台版</div>
+          <span class="score">功能感最强</span>
+        </div>
+        <div class="mock-shell">
+          <div class="app-bg">
+            <div class="fake-panel"></div>
+            <div class="fake-table"></div>
+          </div>
+          <div class="dialog workbench">
+            <div class="modal-top">
+              <div class="file-title">
+                <strong>企微群聊机器人开发.md</strong>
+                <div class="file-meta"><span class="tag">Markdown</span><span>19.5 KB</span><span>3 个片段</span><span>可问答</span></div>
+              </div>
+              <div class="icon-btns"><span class="icon">⌕</span><span class="icon">↓</span><span class="icon">×</span></div>
+            </div>
+            <div class="workbench-layout">
+              <aside class="side">
+                <h4>大纲</h4>
+                <div class="row"><strong>元信息</strong>source / author / tags</div>
+                <div class="row"><strong>真实案例</strong>生活工作问题</div>
+                <div class="row"><strong>解决方案</strong>提醒与日程</div>
+                <div class="row"><strong>结论</strong>后续自动化</div>
+              </aside>
+              <div class="markdown">
+                <div class="frontmatter">来源：codefather.cn<br>创建：2026-04-17<br>标签：clippings</div>
+                <h2>分享一个用程序解决生活工作问题的真实案例</h2>
+                <p>说来惭愧，事情是这样的，在我们公司，每天都要轮流安排一名员工去楼层中间接水。</p>
+                <p>我想到了几种方法：每天大家轮流提醒、指定员工提醒、在企业微信日历功能里安排日程。</p>
+                <div class="note-img">嵌入图片 / 表格 / 代码块</div>
+              </div>
+              <aside class="side right">
+                <h4>文档信息</h4>
+                <div class="row"><strong>状态</strong>就绪</div>
+                <div class="row"><strong>上传者</strong>毛毛</div>
+                <div class="row"><strong>体积</strong>19.5 KB</div>
+                <div class="row"><strong>操作</strong>下载 / 删除 / 重新解析</div>
+              </aside>
+            </div>
+          </div>
+        </div>
+        <p class="caption"><strong>适合：</strong>后续要加“片段定位、命中证据、解析诊断”。改动最大，但最像知识库管理工具。</p>
+      </article>
+    </section>
+  </main>
+
+  <script>
+    function selectOption(el) {
+      document.querySelectorAll('.option').forEach(item => item.classList.remove('selected'));
+      el.classList.add('selected');
+      const choice = el.getAttribute('data-choice');
+      const text = el.querySelector('.option-title')?.innerText || choice;
+      fetch('/__event', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ type: 'click', choice, text, timestamp: Date.now() })
+      }).catch(() => {});
+    }
+  </script>
+</body>
+</html>

@@ -4,6 +4,7 @@ import { marked } from 'marked'
 import type { QaMessage } from '../composables/useQaSessions'
 import type { CitationItem } from '@/api/qa'
 import CitationRail from './CitationRail.vue'
+import EvidenceOverviewPanel from './EvidenceOverviewPanel.vue'
 
 const props = defineProps<{
   message: QaMessage
@@ -107,6 +108,11 @@ function formatTime(ts: number): string {
 
       <!-- Assistant answer markdown -->
       <div v-else class="qa-msg__markdown" v-html="rendered" />
+
+      <EvidenceOverviewPanel
+        v-if="message.role === 'assistant' && message.evidenceOverview"
+        :overview="message.evidenceOverview"
+      />
 
       <!-- Citations -->
       <CitationRail
