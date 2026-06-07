@@ -6,6 +6,7 @@ import com.argus.rag.qa.model.vo.AskQuestionResponse;
 import com.argus.rag.qa.rag.ReadyChunkDocumentRetriever;
 import com.argus.rag.qa.rag.RetrievedEvidenceBundle;
 import com.argus.rag.qa.support.CitationAssembler;
+import com.argus.rag.qa.support.EvidenceOverviewAssembler;
 import com.argus.rag.qa.support.QaAnswerParser;
 import com.argus.rag.common.exception.BusinessException;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -58,6 +59,7 @@ public class QaChatService {
         private final ReadyChunkDocumentRetriever documentRetriever;
         private final QaAnswerParser answerParser;
         private final CitationAssembler citationAssembler;
+        private final EvidenceOverviewAssembler evidenceOverviewAssembler;
         private final ObjectMapper objectMapper;
 
         /**
@@ -102,12 +104,14 @@ public class QaChatService {
                         ReadyChunkDocumentRetriever documentRetriever,
                         QaAnswerParser answerParser,
                         CitationAssembler citationAssembler,
+                        EvidenceOverviewAssembler evidenceOverviewAssembler,
                         ObjectMapper objectMapper) {
                 this.qaChatClient = qaChatClient;
                 this.qaUserPromptTemplate = qaUserPromptTemplate;
                 this.documentRetriever = documentRetriever;
                 this.answerParser = answerParser;
                 this.citationAssembler = citationAssembler;
+                this.evidenceOverviewAssembler = evidenceOverviewAssembler;
                 this.objectMapper = objectMapper;
         }
 
@@ -159,7 +163,8 @@ public class QaChatService {
                 if (result.output() == null) {
                         log.warn("问答结构化输出失败: groupId={}, evidenceCount={}", groupId, documents.size());
                         return new AskResult(
-                                        AskQuestionResponse.unanswered(FORMAT_ERROR_CODE, FORMAT_ERROR_MESSAGE, List.of()),
+                                        AskQuestionResponse.unanswered(FORMAT_ERROR_CODE, FORMAT_ERROR_MESSAGE, List.of())
+                                                        .withEvidenceOverview(evidenceOverviewAssembler.assemble(documents)),
                                         new UsageInfo(result.usage.promptTokens(), result.usage.completionTokens(),
                                                         result.usage.totalTokens(), result.usage.estimated(), latencyMs),
                                         evidenceBundle.evidenceLevel(),
@@ -170,7 +175,8 @@ public class QaChatService {
                                         groupId, result.output().reasonCode(), result.output().reasonMessage());
                         return new AskResult(
                                         AskQuestionResponse.unanswered(result.output().reasonCode(),
-                                                        result.output().reasonMessage(), List.of()),
+                                                        result.output().reasonMessage(), List.of())
+                                                        .withEvidenceOverview(evidenceOverviewAssembler.assemble(documents)),
                                         new UsageInfo(result.usage.promptTokens(), result.usage.completionTokens(),
                                                         result.usage.totalTokens(), result.usage.estimated(), latencyMs),
                                         evidenceBundle.evidenceLevel(),
@@ -182,7 +188,8 @@ public class QaChatService {
                 return new AskResult(
                                 AskQuestionResponse.answered(
                                                 result.output().answer().trim(),
-                                                citationAssembler.assembleDocuments(documents)),
+                                                citationAssembler.assembleDocuments(documents))
+                                                .withEvidenceOverview(evidenceOverviewAssembler.assemble(documents)),
                                 new UsageInfo(result.usage.promptTokens(), result.usage.completionTokens(),
                                                 result.usage.totalTokens(), result.usage.estimated(), latencyMs),
                                 evidenceBundle.evidenceLevel(),

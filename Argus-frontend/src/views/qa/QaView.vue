@@ -3,7 +3,16 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { fetchGroups } from '@/api/group'
-import { streamAskQuestion, type CitationItem } from '@/api/qa'
+import {
+  getQaRecord,
+  listQaRecords,
+  streamAskQuestion,
+  type CitationItem,
+  type EvidenceOverview,
+  type QaRecordCitation,
+  type QaRecordDetail,
+  type QaRecordListItem,
+} from '@/api/qa'
 import { extractApiError } from '@/api/http'
 import type { DocumentItem } from '@/api/document'
 import DocumentPreviewModal from '@/components/DocumentPreviewModal.vue'
@@ -11,7 +20,7 @@ import QaSidebar from './components/QaSidebar.vue'
 import QaTranscript from './components/QaTranscript.vue'
 import QaComposer from './components/QaComposer.vue'
 import QaEmptyHero from './components/QaEmptyHero.vue'
-import { useQaSessions, type QaMessage } from './composables/useQaSessions'
+import { useQaSessions, type QaMessage, type QaSession } from './composables/useQaSessions'
 
 const appStore = useAppStore()
 const authStore = useAuthStore()
@@ -48,6 +57,7 @@ async function loadGroups() {
     if (selectedGroupId.value === null || !appStore.visibleGroups.some((g) => g.groupId === selectedGroupId.value)) {
       selectedGroupId.value = appStore.currentGroupId ?? appStore.visibleGroups[0]?.groupId ?? null
     }
+    await loadHistoryForSelectedGroup()
   } catch (err) {
     groupsError.value = extractApiError(err, '加载群组失败')
   } finally {
@@ -59,10 +69,147 @@ watch(selectedGroupId, (v) => {
   appStore.setCurrentGroupId(v)
   // If active session is bound to a different group, leave it intact — user may be reviewing history.
   // When the user asks a new question, we'll rebind if needed.
+  loadHistoryForSelectedGroup()
 })
 
 // ── Ask flow ──
 const asking = ref(false)
+const historyLoading = ref(false)
+const historyError = ref('')
+let historyRequestSeq = 0
+
+function recordSessionId(recordId: number): string {
+  return `qa-record-${recordId}`
+}
+
+function timestampOf(value: string): number {
+  const time = Date.parse(value)
+  return Number.isFinite(time) ? time : Date.now()
+}
+
+function groupNameOf(groupId: number | null): string {
+  if (groupId === null) return ''
+  return appStore.visibleGroups.find((group) => group.groupId === groupId)?.groupName ?? selectedGroupName.value
+}
+
+function mapCitation(citation: QaRecordCitation): CitationItem {
+  return {
+    documentId: citation.documentId,
+    chunkId: citation.chunkId,
+    chunkIndex: citation.chunkIndex,
+    fileName: citation.fileName,
+    score: citation.score ?? 0,
+    snippet: citation.snippet,
+  }
+}
+
+function buildHistorySession(record: QaRecordListItem): QaSession {
+  const createdAt = timestampOf(record.createdAt)
+  return {
+    id: recordSessionId(record.id),
+    title: record.question,
+    groupId: record.groupId,
+    groupName: groupNameOf(record.groupId),
+    recordId: record.id,
+    hydrated: false,
+    createdAt,
+    updatedAt: createdAt,
+    messages: [
+      {
+        id: `qa-record-${record.id}-question`,
+        role: 'user',
+        content: record.question,
+        createdAt,
+      },
+      {
+        id: `qa-record-${record.id}-answer`,
+        role: 'assistant',
+        content: record.answerPreview || record.reasonCode || '',
+        createdAt,
+        pending: false,
+        answered: record.answered,
+        reasonCode: record.reasonCode,
+        reasonMessage: null,
+        citations: [],
+        evidenceOverview: null,
+        recordId: record.id,
+      },
+    ],
+  }
+}
+
+function applyRecordDetail(session: QaSession, detail: QaRecordDetail) {
+  const createdAt = timestampOf(detail.createdAt)
+  session.title = detail.question
+  session.groupId = detail.groupId
+  session.groupName = groupNameOf(detail.groupId)
+  session.createdAt = createdAt
+  session.updatedAt = createdAt
+  session.hydrated = true
+  session.messages = [
+    {
+      id: `qa-record-${detail.id}-question`,
+      role: 'user',
+      content: detail.question,
+      createdAt,
+    },
+    {
+      id: `qa-record-${detail.id}-answer`,
+      role: 'assistant',
+      content: detail.answered ? detail.answer ?? '' : detail.reasonMessage ?? '',
+      createdAt,
+      pending: false,
+      answered: detail.answered,
+      reasonCode: detail.reasonCode,
+      reasonMessage: detail.reasonMessage,
+      citations: detail.citations.map(mapCitation),
+      evidenceOverview: detail.evidenceOverview ?? null,
+      recordId: detail.id,
+    },
+  ]
+}
+
+async function loadHistoryForSelectedGroup() {
+  if (!authStore.accessToken || selectedGroupId.value === null) {
+    sessions.value = []
+    activeSessionId.value = null
+    return
+  }
+  const requestSeq = ++historyRequestSeq
+  historyLoading.value = true
+  historyError.value = ''
+  try {
+    const page = await listQaRecords({
+      groupId: selectedGroupId.value,
+      page: 1,
+      pageSize: 20,
+    })
+    if (requestSeq !== historyRequestSeq) return
+    sessions.value = page.items.map(buildHistorySession)
+    activeSessionId.value = sessions.value[0]?.id ?? null
+    if (activeSessionId.value) {
+      await hydrateHistorySession(activeSessionId.value)
+    }
+  } catch (err) {
+    if (requestSeq !== historyRequestSeq) return
+    historyError.value = extractApiError(err, '加载历史会话失败')
+  } finally {
+    if (requestSeq === historyRequestSeq) {
+      historyLoading.value = false
+    }
+  }
+}
+
+async function hydrateHistorySession(sessionId: string) {
+  const session = sessions.value.find((item) => item.id === sessionId)
+  if (!session?.recordId || session.hydrated) return
+  try {
+    const detail = await getQaRecord(session.recordId)
+    applyRecordDetail(session, detail)
+  } catch (err) {
+    historyError.value = extractApiError(err, '加载历史详情失败')
+  }
+}
 
 function ensureSessionForAsk(): string {
   if (activeSession.value && activeSession.value.groupId === selectedGroupId.value) {
@@ -133,6 +280,11 @@ async function handleAsk(text: string) {
             citations,
           })
         },
+        onEvidenceOverview(overview: EvidenceOverview | null) {
+          updateMessage(sessionId, assistantId, {
+            evidenceOverview: overview,
+          })
+        },
         onError(message: string) {
           updateMessage(sessionId, assistantId, {
             content: streamedContent,
@@ -141,6 +293,7 @@ async function handleAsk(text: string) {
             reasonCode: 'STREAM_ERROR',
             reasonMessage: message,
             citations: [],
+            evidenceOverview: null,
           })
         },
         onRecord(id: number) {
@@ -161,6 +314,7 @@ async function handleAsk(text: string) {
         reasonCode: null,
         reasonMessage: null,
         citations: [],
+        evidenceOverview: null,
         recordId,
       })
     }
@@ -172,6 +326,7 @@ async function handleAsk(text: string) {
       reasonCode: 'REQUEST_FAILED',
       reasonMessage: extractApiError(err, '请求失败，请稍后再试'),
       citations: [],
+      evidenceOverview: null,
     })
   } finally {
     asking.value = false
@@ -180,6 +335,11 @@ async function handleAsk(text: string) {
 
 function handleNewChat() {
   createSession(selectedGroupId.value, selectedGroupName.value)
+}
+
+function handleSelectSession(sessionId: string) {
+  selectSession(sessionId)
+  hydrateHistorySession(sessionId)
 }
 
 const composerRef = ref<InstanceType<typeof QaComposer> | null>(null)
@@ -227,6 +387,8 @@ onMounted(() => {
     loadGroups()
   } else if (selectedGroupId.value === null) {
     selectedGroupId.value = appStore.visibleGroups[0]?.groupId ?? null
+  } else {
+    loadHistoryForSelectedGroup()
   }
 })
 </script>
@@ -237,10 +399,12 @@ onMounted(() => {
       v-model:selected-group-id="selectedGroupId"
       :groups="appStore.visibleGroups"
       :groups-loading="groupsLoading"
+      :history-loading="historyLoading"
+      :history-error="historyError"
       :sessions="sessions"
       :active-session-id="activeSessionId"
       @new-chat="handleNewChat"
-      @select-session="selectSession"
+      @select-session="handleSelectSession"
       @delete-session="deleteSession"
     />
 

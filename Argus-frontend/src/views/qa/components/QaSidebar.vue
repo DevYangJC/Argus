@@ -7,6 +7,8 @@ const props = defineProps<{
   groups: VisibleGroup[]
   selectedGroupId: number | null
   groupsLoading: boolean
+  historyLoading: boolean
+  historyError: string
   sessions: QaSession[]
   activeSessionId: string | null
 }>()
@@ -83,8 +85,16 @@ function formatRelative(ts: number): string {
     <!-- Session list -->
     <div class="qa-sidebar__history">
       <div class="qa-sidebar__history-head">
-        <span class="qa-sidebar__history-label">本地会话</span>
+        <span class="qa-sidebar__history-label">历史会话</span>
         <span class="qa-sidebar__history-count">{{ sessions.length }}</span>
+      </div>
+
+      <div v-if="historyLoading" class="qa-sidebar__history-state">
+        正在同步历史...
+      </div>
+
+      <div v-else-if="historyError" class="qa-sidebar__history-state qa-sidebar__history-state--error">
+        {{ historyError }}
       </div>
 
       <ul v-if="sessions.length > 0" class="qa-sidebar__list">
@@ -123,8 +133,8 @@ function formatRelative(ts: number): string {
       </ul>
 
       <div v-else class="qa-sidebar__empty">
-        <p>暂无会话</p>
-        <small>提问后会在此自动记录</small>
+        <p>暂无历史会话</p>
+        <small>提问后会保存到数据库，重新登录后仍会显示</small>
       </div>
     </div>
 
@@ -132,7 +142,7 @@ function formatRelative(ts: number): string {
     <div class="qa-sidebar__footer">
       <div class="qa-sidebar__note">
         <span class="qa-sidebar__note-dot" />
-        会话仅保存在当前浏览器
+        历史会话来自数据库
       </div>
     </div>
   </aside>
@@ -349,6 +359,21 @@ function formatRelative(ts: number): string {
   background: rgba(148, 163, 184, 0.12);
   padding: 1px 7px;
   border-radius: 100px;
+}
+
+.qa-sidebar__history-state {
+  margin: 0 4px 8px;
+  padding: 7px 9px;
+  border-radius: 7px;
+  background: rgba(74, 144, 217, 0.08);
+  color: var(--brand-primary-dark);
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
+.qa-sidebar__history-state--error {
+  background: rgba(239, 68, 68, 0.08);
+  color: #b91c1c;
 }
 
 .qa-sidebar__list {

@@ -45,6 +45,8 @@ public record QaRecordDetailVO(
         String errorMessage,
         /** 记录创建时间。 */
         LocalDateTime createdAt,
+        /** Persisted citations assembled into the evidence overview panel shape. */
+        AskQuestionResponse.EvidenceOverview evidenceOverview,
         /** 回答时保存的引用快照。 */
         List<Citation> citations
 ) {
@@ -71,6 +73,7 @@ public record QaRecordDetailVO(
                 success,
                 errorMessage,
                 createdAt,
+                evidenceOverview,
                 citations
         );
     }
