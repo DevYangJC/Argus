@@ -6,6 +6,7 @@ import com.argus.rag.qa.model.vo.AskQuestionResponse;
 import com.argus.rag.qa.service.QaChatService;
 import com.argus.rag.qa.service.QaService;
 import com.argus.rag.qa.support.CitationAssembler;
+import com.argus.rag.qa.support.EvidenceOverviewAssembler;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
@@ -39,6 +40,7 @@ public class QaController {
 
     private final QaService qaService;
     private final CitationAssembler citationAssembler;
+    private final EvidenceOverviewAssembler evidenceOverviewAssembler;
 
     /**
      * 构造函数。
@@ -46,9 +48,13 @@ public class QaController {
      * @param qaService         知识问答服务
      * @param citationAssembler 引用组装器，用于流式回答完成后组装引用来源
      */
-    public QaController(QaService qaService, CitationAssembler citationAssembler) {
+    public QaController(
+            QaService qaService,
+            CitationAssembler citationAssembler,
+            EvidenceOverviewAssembler evidenceOverviewAssembler) {
         this.qaService = qaService;
         this.citationAssembler = citationAssembler;
+        this.evidenceOverviewAssembler = evidenceOverviewAssembler;
     }
 
     /**
@@ -123,6 +129,11 @@ public class QaController {
                                     .assembleDocuments(streamContext.documents());
                             if (!citations.isEmpty()) {
                                 emitter.send(SseEmitter.event().name("citations").data(citations));
+                            }
+                            AskQuestionResponse.EvidenceOverview evidenceOverview = evidenceOverviewAssembler
+                                    .assemble(streamContext.documents());
+                            if (evidenceOverview != null) {
+                                emitter.send(SseEmitter.event().name("evidence-overview").data(evidenceOverview));
                             }
                             Long recordId = streamContext.recordId();
                             if (recordId != null) {

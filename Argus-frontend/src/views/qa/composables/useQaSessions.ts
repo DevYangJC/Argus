@@ -1,5 +1,5 @@
 import { ref, computed } from 'vue'
-import type { CitationItem } from '@/api/qa'
+import type { CitationItem, EvidenceOverview } from '@/api/qa'
 
 export type QaRole = 'user' | 'assistant'
 
@@ -13,6 +13,7 @@ export interface QaMessage {
   reasonCode?: string | null
   reasonMessage?: string | null
   citations?: CitationItem[]
+  evidenceOverview?: EvidenceOverview | null
   recordId?: number | null
 }
 
@@ -24,6 +25,8 @@ export interface QaSession {
   messages: QaMessage[]
   createdAt: number
   updatedAt: number
+  recordId?: number
+  hydrated?: boolean
 }
 
 function uid(): string {

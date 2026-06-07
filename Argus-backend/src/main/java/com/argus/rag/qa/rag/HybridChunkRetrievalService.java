@@ -133,12 +133,17 @@ public class HybridChunkRetrievalService {
             return RetrievedEvidenceBundle.empty();
         }
 
-        List<RetrievalCandidate> rankedCandidates = candidates.values().stream()
+        List<RetrievalCandidate> sortedCandidates = candidates.values().stream()
                 .sorted(Comparator
                         .comparingDouble(RetrievalCandidate::rankingScore).reversed()
                         .thenComparing(RetrievalCandidate::chunkId))
-                .limit(validTopK)
                 .toList();
+        boolean preferDocumentCoverage = shouldPreferDocumentCoverage(normalizedQuestion);
+        String coverageMode = preferDocumentCoverage ? "DOCUMENT_COVERAGE" : "RELEVANCE_ONLY";
+        List<RetrievalCandidate> rankedCandidates = selectRankedCandidates(
+                sortedCandidates,
+                validTopK,
+                preferDocumentCoverage);
         List<RetrievalCluster> rankedClusters = buildClusters(rankedCandidates);
         log.info("RRF融合排序完成: groupId={}, rankedCandidates={}, clusters={}",
                 validGroupId, rankedCandidates.size(), rankedClusters.size());
@@ -154,7 +159,7 @@ public class HybridChunkRetrievalService {
             if (row == null) {
                 continue;
             }
-            Document document = toDocument("E" + evidenceIndex, row, cluster, chunkWindowCache);
+            Document document = toDocument("E" + evidenceIndex, row, cluster, chunkWindowCache, coverageMode);
             if (document == null) {
                 continue;
             }
@@ -171,6 +176,61 @@ public class HybridChunkRetrievalService {
         log.info("混合检索完成: groupId={}, evidenceCount={}, evidenceLevel={}, elapsedMs={}",
                 validGroupId, documents.size(), evidenceLevel, elapsedMs);
         return new RetrievedEvidenceBundle(documents, evidenceLevel, buildEvidenceGuidance(evidenceLevel));
+    }
+
+    /**
+     * 选择最终进入上下文的候选切片。
+     * <p>
+     * 普通问答按相关性取前 topK；当用户要求“每个文档/所有文档”时，先给不同文档各保留一个最高分切片，
+     * 避免单个高相关文档的多个切片挤掉其他文档。
+     * </p>
+     */
+    private List<RetrievalCandidate> selectRankedCandidates(
+            List<RetrievalCandidate> sortedCandidates,
+            int topK,
+            boolean preferDocumentCoverage) {
+        if (!preferDocumentCoverage) {
+            return sortedCandidates.stream().limit(topK).toList();
+        }
+        List<RetrievalCandidate> selectedCandidates = new ArrayList<>();
+        Set<Long> selectedChunkIds = new LinkedHashSet<>();
+        Set<Long> coveredDocumentIds = new LinkedHashSet<>();
+        for (RetrievalCandidate candidate : sortedCandidates) {
+            if (selectedCandidates.size() >= topK) {
+                break;
+            }
+            if (coveredDocumentIds.add(candidate.documentId())) {
+                selectedCandidates.add(candidate);
+                selectedChunkIds.add(candidate.chunkId());
+            }
+        }
+        for (RetrievalCandidate candidate : sortedCandidates) {
+            if (selectedCandidates.size() >= topK) {
+                break;
+            }
+            if (selectedChunkIds.add(candidate.chunkId())) {
+                selectedCandidates.add(candidate);
+            }
+        }
+        return selectedCandidates;
+    }
+
+    /** 判断问题是否更需要跨文档覆盖，而不是只追求最高相关切片。 */
+    private boolean shouldPreferDocumentCoverage(String question) {
+        String normalizedQuestion = question.toLowerCase(Locale.ROOT);
+        return normalizedQuestion.contains("每个文档")
+                || normalizedQuestion.contains("每份文档")
+                || normalizedQuestion.contains("各个文档")
+                || normalizedQuestion.contains("逐个文档")
+                || normalizedQuestion.contains("按文档")
+                || normalizedQuestion.contains("文档分别")
+                || normalizedQuestion.contains("所有文档")
+                || normalizedQuestion.contains("全部文档")
+                || normalizedQuestion.contains("all documents")
+                || normalizedQuestion.contains("each document")
+                || normalizedQuestion.contains("every document")
+                || normalizedQuestion.contains("per document")
+                || normalizedQuestion.contains("document by document");
     }
 
     /** 合并向量检索结果到候选集合，累加 RRF 评分 */
@@ -219,7 +279,8 @@ public class HybridChunkRetrievalService {
             String evidenceId,
             Map<String, Object> row,
             RetrievalCluster cluster,
-            Map<Long, List<DocumentChunkEntity>> chunkWindowCache) {
+            Map<Long, List<DocumentChunkEntity>> chunkWindowCache,
+            String coverageMode) {
         Long documentId = requireLong(getValue(row, "documentId"), "documentId");
         Integer chunkIndex = requireInteger(getValue(row, "chunkIndex"), "chunkIndex");
         if (!documentId.equals(cluster.documentId()) || !chunkIndex.equals(cluster.primaryChunkIndex())) {
@@ -241,6 +302,7 @@ public class HybridChunkRetrievalService {
         double normalizedScore = normalizeScore(cluster.rankingScore());
         metadata.put("score", normalizedScore);
         metadata.put("retrievalSource", cluster.source());
+        metadata.put("coverageMode", coverageMode);
         metadata.put("vectorScore", cluster.vectorScore());
         metadata.put("keywordScore", cluster.keywordScore());
         metadata.put("hybridScore", cluster.rankingScore());
