@@ -214,6 +214,13 @@ export async function getQaRecord(recordId: number): Promise<QaRecordDetail> {
   return data.data
 }
 
+export async function deleteQaRecord(recordId: number): Promise<void> {
+  const { data } = await http.delete<ApiResponse<null>>(`/qa/records/${recordId}`)
+  if (!data.success) {
+    throw new Error(data.message ?? '删除历史会话失败')
+  }
+}
+
 /**
  * 流式提问（SSE）
  *

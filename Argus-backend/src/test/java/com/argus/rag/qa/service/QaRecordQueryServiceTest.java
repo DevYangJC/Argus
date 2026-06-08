@@ -19,6 +19,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -62,6 +63,24 @@ class QaRecordQueryServiceTest {
         assertThat(overview.groups().getFirst().snippets())
                 .extracting(AskQuestionResponse.EvidenceSnippet::chunkId)
                 .containsExactly(101L);
+    }
+
+    @Test
+    @DisplayName("should delete visible history record and citation snapshots")
+    void shouldDeleteVisibleHistoryRecordAndCitationSnapshots() {
+        when(currentUserService.getRequiredCurrentUser()).thenReturn(
+                new CurrentUserService.CurrentUser(5L, "u001", "Alice", SystemRole.USER, false));
+        when(qaRecordMapper.selectVisibleRecord(77L, 5L, false)).thenReturn(record());
+        QaRecordQueryService service = new QaRecordQueryService(
+                currentUserService,
+                qaRecordMapper,
+                qaRecordCitationMapper,
+                new EvidenceOverviewAssembler());
+
+        service.delete(77L);
+
+        verify(qaRecordCitationMapper).deleteByRecordId(77L);
+        verify(qaRecordMapper).deleteById(77L);
     }
 
     private QaRecordEntity record() {

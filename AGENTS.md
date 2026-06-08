@@ -1,4 +1,4 @@
-# AGENTS.md
+﻿# AGENTS.md
 
 This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
 
@@ -46,7 +46,7 @@ com.argus.rag
 │   └── exception/                 # BusinessException(400), ForbiddenException(403),
 │                                  # UnauthorizedException(401), GlobalExceptionHandler
 ├── auth/                          # Authentication & authorization
-│   ├── config/                    # AuthProperties (@ConfigurationProperties prefix: ddrag.auth),
+│   ├── config/                    # AuthProperties (@ConfigurationProperties prefix: argus.rag.auth),
 │   │                              # AuthConfiguration (PasswordHasher bean, Clock bean),
 │   │                              # DevAdminInitializer (@Profile("dev") seeds admin account)
 │   ├── controller/AuthController  # /api/auth/{login,register,refresh,logout,me}
@@ -90,6 +90,6 @@ com.argus.rag
 ## Configuration
 
 - **Active profile**: `local` (default in `application.yml`)
-- **Auth properties prefix**: `ddrag.auth` (maps to `AuthProperties` class)
+- **Auth properties prefix**: `argus.rag.auth` (maps to `AuthProperties` class)
 - **MyBatis-Plus XML mappers**: `classpath*:/mappers/**/*.xml`
 - **Enum handling**: Stored as VARCHAR using enum `.name()` values

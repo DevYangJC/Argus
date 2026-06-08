@@ -90,7 +90,7 @@ public class ElasticsearchChunkIndexService {
      * @param host         ES 主机地址，默认 {@code localhost}
      * @param port         ES 端口，默认 {@code 9200}
      * @param scheme       ES 协议，默认 {@code http}
-     * @param indexName    ES 索引名称，默认 {@code dd_rag_document_chunks}
+     * @param indexName    ES 索引名称，默认 {@code argus_rag_document_chunks}
      */
     @Autowired
     public ElasticsearchChunkIndexService(
@@ -98,7 +98,7 @@ public class ElasticsearchChunkIndexService {
             @Value("${elasticsearch.host:localhost}") String host,
             @Value("${elasticsearch.port:9200}") int port,
             @Value("${elasticsearch.scheme:http}") String scheme,
-            @Value("${elasticsearch.index-name:dd_rag_document_chunks}") String indexName
+            @Value("${elasticsearch.index-name:argus_rag_document_chunks}") String indexName
     ) {
         this(
                 objectMapper,
@@ -368,8 +368,8 @@ public class ElasticsearchChunkIndexService {
      * <p>
      * <b>Analysis 配置：</b>
      * <ul>
-     *   <li>{@code ddrag_ik_index} —— 索引端使用 IK 最大切分（ik_max_word），提高召回覆盖率</li>
-     *   <li>{@code ddrag_ik_search} —— 查询端使用 IK 智能切分（ik_smart），提高精确度</li>
+     *   <li>{@code argus_rag_ik_index} —— 索引端使用 IK 最大切分（ik_max_word），提高召回覆盖率</li>
+     *   <li>{@code argus_rag_ik_search} —— 查询端使用 IK 智能切分（ik_smart），提高精确度</li>
      * </ul>
      * <p>
      * <b>Mappings 字段：</b>
@@ -391,11 +391,11 @@ public class ElasticsearchChunkIndexService {
                 "settings", Map.of(
                         "analysis", Map.of(
                                 "analyzer", Map.of(
-                                        "ddrag_ik_index", Map.of(
+                                        "argus_rag_ik_index", Map.of(
                                                 "type", "custom",
                                                 "tokenizer", "ik_max_word"
                                         ),
-                                        "ddrag_ik_search", Map.of(
+                                        "argus_rag_ik_search", Map.of(
                                                 "type", "custom",
                                                 "tokenizer", "ik_smart"
                                         )
@@ -412,8 +412,8 @@ public class ElasticsearchChunkIndexService {
                                 "deleted", Map.of("type", "boolean"),
                                 "fileName", Map.of(
                                         "type", "text",
-                                        "analyzer", "ddrag_ik_index",
-                                        "search_analyzer", "ddrag_ik_search",
+                                        "analyzer", "argus_rag_ik_index",
+                                        "search_analyzer", "argus_rag_ik_search",
                                         "fields", Map.of(
                                                 "keyword", Map.of(
                                                         "type", "keyword",
@@ -423,8 +423,8 @@ public class ElasticsearchChunkIndexService {
                                 ),
                                 "chunkText", Map.of(
                                         "type", "text",
-                                        "analyzer", "ddrag_ik_index",
-                                        "search_analyzer", "ddrag_ik_search"
+                                        "analyzer", "argus_rag_ik_index",
+                                        "search_analyzer", "argus_rag_ik_search"
                                 )
                         )
                 )

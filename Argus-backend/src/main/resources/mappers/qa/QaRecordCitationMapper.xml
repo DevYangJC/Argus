@@ -44,4 +44,9 @@
         WHERE qa_record_id = #{recordId}
         ORDER BY id ASC
     </select>
+
+    <delete id="deleteByRecordId">
+        DELETE FROM qa_record_citations
+        WHERE qa_record_id = #{recordId}
+    </delete>
 </mapper>

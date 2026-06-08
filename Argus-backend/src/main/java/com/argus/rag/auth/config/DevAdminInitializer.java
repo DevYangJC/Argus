@@ -17,7 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 仅在 dev 环境确保一个可预测的管理员账号存在，避免本地调试还要额外手工开户。
  * <p>
- * 通过 {@code ddrag.dev-admin.*} 配置项自定义账号信息。
+ * 通过 {@code argus.rag.dev-admin.*} 配置项自定义账号信息。
  */
 @Slf4j
 @Component
@@ -35,11 +35,11 @@ public class DevAdminInitializer implements ApplicationRunner {
     public DevAdminInitializer(
             UserMapper userMapper,
             PasswordHasher passwordHasher,
-            @Value("${ddrag.dev-admin.username:admin}") String username,
-            @Value("${ddrag.dev-admin.email:admin@local.ddrag.test}") String email,
-            @Value("${ddrag.dev-admin.display-name:开发环境管理员}") String displayName,
-            @Value("${ddrag.dev-admin.password:Admin@123456}") String password,
-            @Value("${ddrag.dev-admin.user-code:admin}") String userCode
+            @Value("${argus.rag.dev-admin.username:admin}") String username,
+            @Value("${argus.rag.dev-admin.email:admin@local.argus-rag.test}") String email,
+            @Value("${argus.rag.dev-admin.display-name:开发环境管理员}") String displayName,
+            @Value("${argus.rag.dev-admin.password:Admin@123456}") String password,
+            @Value("${argus.rag.dev-admin.user-code:admin}") String userCode
     ) {
         this.userMapper = userMapper;
         this.passwordHasher = passwordHasher;

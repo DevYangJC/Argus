@@ -1,10 +1,55 @@
-# 双机 Docker Compose 部署指南：服务器 A 完整流程
+﻿# 分服务器 Docker Compose 部署指南
 
 ## 一、部署架构概述
 
 本部署方案针对两台配置为 3.3G 级别的 Linux 服务器进行服务拆分，采用 Docker Compose 进行容器化编排。这套方案的设计理念是在保持开发链路简易性的同时，实现生产级别的服务分离与资源优化。服务器 A 承载所有数据密集型服务，包括 PostgreSQL 关系型数据库、Elasticsearch 全文搜索引擎、MinIO 对象存储服务以及可选的 elasticvue Web 管理界面。服务器 B 则负责运行 Ollama 本地大模型推理服务、Spring Boot 后端应用以及 Vite 开发服务器前端应用。
 
-与传统的单体部署不同，本方案明确要求项目代码在两台服务器上保持同步，以便共享相同的 docker-compose 配置文件和环境变量模板。每个服务器的职责边界清晰划分，这种职责分离不仅有助于资源隔离和管理，更为后续的水平扩展和故障容错提供了坚实基础。需要特别强调的是，本方案不会对根目录现有的任何 docker-compose.yml 文件进行覆盖操作，所有部署文件均位于 `/opt/dd-rag/deploy/two-node/` 子目录中，从而确保不影响宿主机的其他 Docker 服务。
+与传统的单体部署不同，本方案明确要求项目代码在两台服务器上保持同步，以便共享相同的 docker-compose 配置文件和环境变量模板。每个服务器的职责边界清晰划分，这种职责分离不仅有助于资源隔离和管理，更为后续的水平扩展和故障容错提供了坚实基础。需要特别强调的是，本方案不会对根目录现有的任何 docker-compose.yml 文件进行覆盖操作，所有部署文件均位于 `/opt/argus-rag/Argus-backend/deploy/` 子目录中，从而确保不影响宿主机的其他 Docker 服务。
+
+
+当前部署目录结构如下：
+
+```text
+deploy/
+├── README.md
+├── server-a.compose.yml
+├── server-b.compose.yml
+├── env/
+│   ├── server-a.env.example
+│   └── server-b.env.example
+└── images/
+    └── elasticsearch/
+        └── Dockerfile
+```
+
+其中 `server-a.compose.yml` 和 `server-b.compose.yml` 是两台服务器各自的编排文件，`env/` 保存环境变量模板，`images/` 保存自定义镜像构建文件。
+
+### Dockerfile 使用方式
+
+当前只有 Elasticsearch 使用了自定义 Dockerfile，位置是 `images/elasticsearch/Dockerfile`（相对于 `deploy/` 目录）。它基于官方 Elasticsearch 镜像安装 IK 中文分词插件：
+
+```dockerfile
+FROM docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+
+RUN bin/elasticsearch-plugin install --batch https://get.infini.cloud/elasticsearch/analysis-ik/8.15.3
+```
+
+这个 Dockerfile 不需要手动执行。服务器 A 的 `server-a.compose.yml` 已经声明了构建关系：
+
+```yaml
+elasticsearch:
+  build:
+    context: .
+    dockerfile: images/elasticsearch/Dockerfile
+```
+
+因此在 `Argus-backend/deploy` 目录执行以下命令时，Docker Compose 会自动使用该 Dockerfile 构建 Elasticsearch 镜像：
+
+```bash
+docker compose --env-file .env.server-a -f server-a.compose.yml up -d --build
+```
+
+如果只是拉取公共镜像，`docker compose pull` 不会构建这个自定义镜像；首次部署、Dockerfile 修改后、或 IK 插件版本调整后，都应使用带 `--build` 的 `up` 命令。
 
 ## 二、前置条件检查与环境准备
 
@@ -144,11 +189,11 @@ swapon -s
 
 ### 2.5 Git 与项目代码准备
 
-部署前需要在两台服务器上拉取项目代码。建议将项目代码统一放置在 `/opt/dd-rag` 目录下，以保持路径一致性：
+部署前需要在两台服务器上拉取项目代码。建议将项目代码统一放置在 `/opt/argus-rag` 目录下，以保持路径一致性：
 
 ```bash
-sudo mkdir -p /opt/dd-rag
-cd /opt/dd-rag
+sudo mkdir -p /opt/argus-rag
+cd /opt/argus-rag
 ```
 
 如果已有项目代码，可以直接复制或链接到该目录；如果需要从 Git 仓库拉取：
@@ -157,18 +202,18 @@ cd /opt/dd-rag
 git clone <your-repo-url> .
 ```
 
-确认项目结构包含 `deploy/two-node/` 子目录：
+确认项目结构包含 `Argus-backend/deploy/` 子目录：
 
 ```bash
-ls -la /opt/dd-rag/deploy/two-node/
+ls -la /opt/argus-rag/Argus-backend/deploy/
 ```
 
 预期应看到以下文件：
 
-- `docker-compose.server-a.yml`
-- `docker-compose.server-b.yml`
-- `server-a.env.example`
-- `server-b.env.example`
+- `server-a.compose.yml`
+- `server-b.compose.yml`
+- `env/server-a.env.example`
+- `env/server-b.env.example`
 
 ## 三、服务器 A 服务详解
 
@@ -201,8 +246,8 @@ Elasticvue 是一个轻量级的 Elasticsearch Web 管理工具，可以在浏�
 首先进入部署目录并复制环境变量示例文件：
 
 ```bash
-cd /opt/dd-rag/deploy/two-node
-cp server-a.env.example .env.server-a
+cd /opt/argus-rag/Argus-backend/deploy
+cp env/server-a.env.example .env.server-a
 ```
 
 接下来需要编辑 `.env.server-a` 文件，配置适合生产环境的关键参数。以下是必须检查和修改的配置项：
@@ -249,52 +294,54 @@ MinIO 的访问凭证需要妥善配置：
 Docker 卷虽然可以自动创建，但为数据目录设置明确的挂载点可以提供更好的可管理性和备份能力。在宿主机上创建数据目录：
 
 ```bash
-sudo mkdir -p /opt/dd-rag/data/postgres
-sudo mkdir -p /opt/dd-rag/data/elasticsearch
-sudo mkdir -p /opt/dd-rag/data/minio
+sudo mkdir -p /opt/argus-rag/data/postgres
+sudo mkdir -p /opt/argus-rag/data/elasticsearch
+sudo mkdir -p /opt/argus-rag/data/minio
 
 # 设置适当的权限
-sudo chown -R 1000:1000 /opt/dd-rag/data/postgres
-sudo chown -R 1000:1000 /opt/dd-rag/data/elasticsearch
-sudo chown -R 1000:1000 /opt/dd-rag/data/minio
+sudo chown -R 1000:1000 /opt/argus-rag/data/postgres
+sudo chown -R 1000:1000 /opt/argus-rag/data/elasticsearch
+sudo chown -R 1000:1000 /opt/argus-rag/data/minio
 ```
 
 Elasticsearch 容器默认以 1000 UID 的用户运行，因此需要确保数据目录对该用户有读写权限。
 
-### 4.3 拉取或更新 Docker 镜像
+### 4.3 拉取公共镜像并准备自定义镜像构建
 
-在正式启动服务之前，建议预先拉取所有需要的 Docker 镜像，以避免启动过程中因网络问题导致的服务中断：
+在正式启动服务之前，可以预先拉取公共 Docker 镜像，以减少启动过程中的等待时间：
 
 ```bash
-cd /opt/dd-rag/deploy/two-node
-docker compose --env-file .env.server-a -f docker-compose.server-a.yml pull
+cd /opt/argus-rag/Argus-backend/deploy
+docker compose --env-file .env.server-a -f server-a.compose.yml pull
 ```
 
-这条命令会从 Docker Hub 或配置的镜像仓库拉取所有服务的基础镜像。如果使用私有镜像仓库，需要确保已登录：
+这条命令会从 Docker Hub 或配置的镜像仓库拉取 PostgreSQL、MinIO、elasticvue 等公共镜像。如果使用私有镜像仓库，需要确保已登录：
 
 ```bash
 docker login <registry-url>
 ```
+
+需要注意，Elasticsearch 服务使用 `deploy/images/elasticsearch/Dockerfile` 构建自定义镜像，`pull` 不会构建它。自定义镜像会在执行 `up -d --build` 时构建。
 
 ### 4.4 首次启动服务
 
 使用以下命令启动服务器 A 上的所有服务：
 
 ```bash
-docker compose --env-file .env.server-a -f docker-compose.server-a.yml up -d --build
+docker compose --env-file .env.server-a -f server-a.compose.yml up -d --build
 ```
 
 参数说明：
 
 - `--env-file .env.server-a`：指定环境变量文件
-- `-f docker-compose.server-a.yml`：指定使用的 Compose 文件
+- `-f server-a.compose.yml`：指定使用的 Compose 文件
 - `-d`：以守护进程模式运行，所有容器在后台执行
 - `--build`：在启动前构建镜像（如果 Dockerfile 有更新）
 
 首次启动时，Docker 需要下载基础镜像、构建自定义镜像，并初始化各个服务的初始状态，可能需要较长时间。通过添加 `--pull always` 参数可以确保每次都使用最新的基础镜像：
 
 ```bash
-docker compose --env-file .env.server-a -f docker-compose.server-a.yml up -d --build --pull always
+docker compose --env-file .env.server-a -f server-a.compose.yml up -d --build --pull always
 ```
 
 ### 4.5 监控启动过程
@@ -304,7 +351,7 @@ docker compose --env-file .env.server-a -f docker-compose.server-a.yml up -d --b
 #### 查看所有容器状态
 
 ```bash
-docker compose --env-file .env.server-a -f docker-compose.server-a.yml ps
+docker compose --env-file .env.server-a -f server-a.compose.yml ps
 ```
 
 预期输出应显示所有服务的状态为 "running"，并且健康检查（如果配置了）应显示 "healthy"。
@@ -314,14 +361,14 @@ docker compose --env-file .env.server-a -f docker-compose.server-a.yml ps
 对于首次启动，建议实时查看日志以捕获任何错误：
 
 ```bash
-docker compose --env-file .env.server-a -f docker-compose.server-a.yml logs -f
+docker compose --env-file .env.server-a -f server-a.compose.yml logs -f
 ```
 
 如果只想查看特定服务的日志：
 
 ```bash
-docker compose --env-file .env.server-a -f docker-compose.server-a.yml logs -f elasticsearch
-docker compose --env-file .env.server-a -f docker-compose.server-b.yml logs -f postgres
+docker compose --env-file .env.server-a -f server-a.compose.yml logs -f elasticsearch
+docker compose --env-file .env.server-a -f server-a.compose.yml logs -f postgres
 ```
 
 #### 等待服务就绪
@@ -345,10 +392,10 @@ echo "Elasticsearch is ready!"
 
 ```bash
 # 检查 PostgreSQL 是否响应
-docker exec -it $(docker compose --env-file .env.server-a -f docker-compose.server-a.yml ps -q postgres) pg_isready -U postgres
+docker exec -it $(docker compose --env-file .env.server-a -f server-a.compose.yml ps -q postgres) pg_isready -U postgres
 
 # 或者直接测试连接
-docker exec -it $(docker compose --env-file .env.server-a -f docker-compose.server-a.yml ps -q postgres) psql -U postgres -c "SELECT 1;"
+docker exec -it $(docker compose --env-file .env.server-a -f server-a.compose.yml ps -q postgres) psql -U postgres -c "SELECT 1;"
 ```
 
 #### Elasticsearch 健康检查
@@ -499,13 +546,13 @@ echo "vm.max_map_count=262144" | sudo tee -a /etc/sysctl.conf
 重启所有服务：
 
 ```bash
-docker compose --env-file .env.server-a -f docker-compose.server-a.yml restart
+docker compose --env-file .env.server-a -f server-a.compose.yml restart
 ```
 
 重启单个服务：
 
 ```bash
-docker compose --env-file .env.server-a -f docker-compose.server-a.yml restart elasticsearch
+docker compose --env-file .env.server-a -f server-a.compose.yml restart elasticsearch
 ```
 
 ### 6.2 服务停止
@@ -513,13 +560,13 @@ docker compose --env-file .env.server-a -f docker-compose.server-a.yml restart e
 停止所有服务（保留数据卷）：
 
 ```bash
-docker compose --env-file .env.server-a -f docker-compose.server-a.yml down
+docker compose --env-file .env.server-a -f server-a.compose.yml down
 ```
 
 停止并删除数据卷（慎用，会丢失数据）：
 
 ```bash
-docker compose --env-file .env.server-a -f docker-compose.server-a.yml down -v
+docker compose --env-file .env.server-a -f server-a.compose.yml down -v
 ```
 
 ### 6.3 服务更新
@@ -527,13 +574,13 @@ docker compose --env-file .env.server-a -f docker-compose.server-a.yml down -v
 当需要更新服务镜像时：
 
 ```bash
-cd /opt/dd-rag/deploy/two-node
+cd /opt/argus-rag/Argus-backend/deploy
 
 # 拉取最新镜像
-docker compose --env-file .env.server-a -f docker-compose.server-a.yml pull
+docker compose --env-file .env.server-a -f server-a.compose.yml pull
 
 # 重建并重启服务
-docker compose --env-file .env.server-a -f docker-compose.server-a.yml up -d --build --pull always
+docker compose --env-file .env.server-a -f server-a.compose.yml up -d --build --pull always
 ```
 
 ### 6.4 日志管理
@@ -541,7 +588,7 @@ docker compose --env-file .env.server-a -f docker-compose.server-a.yml up -d --b
 查看特定服务的最近日志：
 
 ```bash
-docker compose --env-file .env.server-a -f docker-compose.server-a.yml logs --tail=100 elasticsearch
+docker compose --env-file .env.server-a -f server-a.compose.yml logs --tail=100 elasticsearch
 ```
 
 日志轮转配置，编辑 `/etc/docker/daemon.json`：
@@ -580,10 +627,29 @@ sudo systemctl restart docker
 - Elasticsearch：配置快照仓库进行索引备份
 - MinIO：使用 `mc mirror` 命令同步数据到备份位置
 
-## 八、下一步：服务器 B 部署
+## 八、服务器 B 部署
 
-服务器 A 部署并验证成功后，下一步是部署服务器 B。请参考配套文档《双机 Docker Compose 部署指南：服务器 B 完整流程》。
+服务器 A 部署并验证成功后，在服务器 B 上进入同一部署目录，准备服务器 B 的环境变量文件：
+
+```bash
+cd /opt/argus-rag/Argus-backend/deploy
+cp env/server-b.env.example .env.server-b
+nano .env.server-b
+```
+
+重点检查服务器 A 的连接信息，例如 `POSTGRES_HOST`、`MINIO_HOST`、`ELASTICSEARCH_HOST`、数据库密码、MinIO 凭证和 `ARGUS_RAG_JWT_SECRET`。配置完成后启动服务器 B 服务：
+
+```bash
+docker compose --env-file .env.server-b -f server-b.compose.yml up -d --build
+```
+
+查看服务状态和日志：
+
+```bash
+docker compose --env-file .env.server-b -f server-b.compose.yml ps
+docker compose --env-file .env.server-b -f server-b.compose.yml logs -f
+```
 
 ---
 
-*本文档为服务器 A 部署的完整指南。如有问题，请检查日志输出或参考各服务的官方文档。*
+*本文档为分服务器部署的完整指南。如有问题，请检查日志输出或参考各服务的官方文档。*

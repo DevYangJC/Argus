@@ -1,7 +1,7 @@
 services:
   ollama:
     image: ollama/ollama:latest
-    container_name: dd-rag-ollama
+    container_name: argus-rag-ollama
     restart: unless-stopped
     ports:
       - "${OLLAMA_PORT:-11434}:11434"
@@ -15,7 +15,7 @@ services:
 
   ollama-model-init:
     image: ollama/ollama:latest
-    container_name: dd-rag-ollama-model-init
+    container_name: argus-rag-ollama-model-init
     entrypoint:
       - /bin/sh
       - -c
@@ -35,26 +35,26 @@ services:
 
   backend:
     image: maven:3.9.9-eclipse-temurin-21
-    container_name: dd-rag-backend
+    container_name: argus-rag-backend
     restart: unless-stopped
-    working_dir: /workspace
+    working_dir: /workspace/Argus-backend
     command: >
       sh -c "mvn -q -Dmaven.test.skip=true spring-boot:run"
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
       DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
-      SPRING_DATASOURCE_URL: jdbc:postgresql://${POSTGRES_HOST}:${POSTGRES_INTERNAL_PORT:-5432}/${POSTGRES_DB:-dd_rag}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://${POSTGRES_HOST}:${POSTGRES_INTERNAL_PORT:-5432}/${POSTGRES_DB:-argus_rag}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-root}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-123456}
       STORAGE_MINIO_ENDPOINT: http://${MINIO_HOST}:${MINIO_INTERNAL_PORT:-9000}
       STORAGE_MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
       STORAGE_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
-      STORAGE_MINIO_BUCKET: ${MINIO_BUCKET:-dd-rag-documents}
+      STORAGE_MINIO_BUCKET: ${MINIO_BUCKET:-argus-rag-documents}
       SPRING_AI_OLLAMA_BASE_URL: http://ollama:11434
       ELASTICSEARCH_HOST: ${ELASTICSEARCH_HOST}
       ELASTICSEARCH_PORT: ${ELASTICSEARCH_PORT:-9200}
       ELASTICSEARCH_SCHEME: ${ELASTICSEARCH_SCHEME:-http}
-      DD_RAG_JWT_SECRET: ${DD_RAG_JWT_SECRET}
+      ARGUS_RAG_JWT_SECRET: ${ARGUS_RAG_JWT_SECRET}
       MAVEN_OPTS: -Dfile.encoding=UTF-8
     ports:
       - "${BACKEND_PORT:-18080}:8080"
@@ -72,9 +72,9 @@ services:
 
   frontend:
     image: node:22-alpine
-    container_name: dd-rag-frontend
+    container_name: argus-rag-frontend
     restart: unless-stopped
-    working_dir: /workspace/frontend
+    working_dir: /workspace/Argus-frontend
     command: >
       sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
     environment:
@@ -84,7 +84,7 @@ services:
       - "${FRONTEND_PORT:-5173}:5173"
     volumes:
       - ../..:/workspace
-      - frontend-node-modules:/workspace/frontend/node_modules
+      - frontend-node-modules:/workspace/Argus-frontend/node_modules
     depends_on:
       backend:
         condition: service_healthy

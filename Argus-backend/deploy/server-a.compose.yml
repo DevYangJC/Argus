@@ -1,10 +1,10 @@
 services:
   postgres:
     image: pgvector/pgvector:pg16
-    container_name: dd-rag-postgres
+    container_name: argus-rag-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-dd_rag}
+      POSTGRES_DB: ${POSTGRES_DB:-argus_rag}
       POSTGRES_USER: ${POSTGRES_USER:-root}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-123456}
     ports:
@@ -12,16 +12,16 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-root} -d ${POSTGRES_DB:-dd_rag}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-root} -d ${POSTGRES_DB:-argus_rag}"]
       interval: 10s
       timeout: 5s
       retries: 10
 
   elasticsearch:
     build:
-      context: ../..
-      dockerfile: docker/elasticsearch/Dockerfile
-    container_name: dd-rag-elasticsearch
+      context: .
+      dockerfile: images/elasticsearch/Dockerfile
+    container_name: argus-rag-elasticsearch
     restart: unless-stopped
     environment:
       discovery.type: single-node
@@ -39,7 +39,7 @@ services:
 
   minio:
     image: minio/minio:RELEASE.2025-09-07T16-13-09Z
-    container_name: dd-rag-minio
+    container_name: argus-rag-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
@@ -58,7 +58,7 @@ services:
 
   elasticvue:
     image: cars10/elasticvue:latest
-    container_name: dd-rag-elasticvue
+    container_name: argus-rag-elasticvue
     restart: unless-stopped
     ports:
       - "${ELASTICVUE_PORT:-8088}:8080"

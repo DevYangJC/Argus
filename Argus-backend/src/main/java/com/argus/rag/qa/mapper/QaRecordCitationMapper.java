@@ -13,4 +13,7 @@ public interface QaRecordCitationMapper extends BaseMapper<QaRecordCitationEntit
 
     /** 按问答记录 ID 查询引用快照，保持保存顺序返回。 */
     List<QaRecordCitationEntity> selectByRecordId(@Param("recordId") Long recordId);
+
+    /** Deletes citation snapshots for a QA record before removing the record itself. */
+    int deleteByRecordId(@Param("recordId") Long recordId);
 }

@@ -4,6 +4,7 @@ import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { fetchGroups } from '@/api/group'
 import {
+  deleteQaRecord,
   getQaRecord,
   listQaRecords,
   streamAskQuestion,
@@ -342,6 +343,20 @@ function handleSelectSession(sessionId: string) {
   hydrateHistorySession(sessionId)
 }
 
+async function handleDeleteSession(sessionId: string) {
+  const session = sessions.value.find((item) => item.id === sessionId)
+  if (!session) return
+  historyError.value = ''
+  try {
+    if (session.recordId) {
+      await deleteQaRecord(session.recordId)
+    }
+    deleteSession(sessionId)
+  } catch (err) {
+    historyError.value = extractApiError(err, '删除历史会话失败')
+  }
+}
+
 const composerRef = ref<InstanceType<typeof QaComposer> | null>(null)
 
 function handleStarterPick(prompt: string) {
@@ -405,7 +420,7 @@ onMounted(() => {
       :active-session-id="activeSessionId"
       @new-chat="handleNewChat"
       @select-session="handleSelectSession"
-      @delete-session="deleteSession"
+      @delete-session="handleDeleteSession"
     />
 
     <main class="qa-page__main">

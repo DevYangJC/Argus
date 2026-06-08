@@ -1,4 +1,4 @@
-<div align="center">
+﻿<div align="center">
 
 <a href="README.md">简体中文</a> | <strong>English</strong>
 
@@ -312,7 +312,7 @@ Edit `Argus-backend/src/main/resources/application-local.yml` and fill in databa
 
 ```yaml
 # Database
-spring.datasource.url: jdbc:postgresql://localhost:5432/dd_rag
+spring.datasource.url: jdbc:postgresql://localhost:5432/argus_rag
 spring.datasource.username: your_username
 spring.datasource.password: your_password
 

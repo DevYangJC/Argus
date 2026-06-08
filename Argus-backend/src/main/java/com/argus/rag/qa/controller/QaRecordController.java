@@ -5,6 +5,7 @@ import com.argus.rag.common.log.OperationLog;
 import com.argus.rag.qa.model.vo.QaRecordDetailVO;
 import com.argus.rag.qa.model.vo.QaRecordPageVO;
 import com.argus.rag.qa.service.QaRecordQueryService;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -37,5 +38,12 @@ public class QaRecordController {
     @GetMapping("/{recordId}")
     public ApiResponse<QaRecordDetailVO> getRecord(@PathVariable Long recordId) {
         return ApiResponse.success(qaRecordQueryService.getDetail(recordId));
+    }
+
+    /** Deletes a QA history record and its persisted citation snapshots. */
+    @DeleteMapping("/{recordId}")
+    public ApiResponse<Void> deleteRecord(@PathVariable Long recordId) {
+        qaRecordQueryService.delete(recordId);
+        return ApiResponse.success(null);
     }
 }

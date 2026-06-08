@@ -12,6 +12,7 @@ import com.argus.rag.qa.model.vo.QaRecordListItemVO;
 import com.argus.rag.qa.model.vo.QaRecordPageVO;
 import com.argus.rag.qa.support.EvidenceOverviewAssembler;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
@@ -80,6 +81,22 @@ public class QaRecordQueryService {
                 .map(this::toCitation)
                 .toList();
         return toDetail(record, citations);
+    }
+
+    /** Deletes a visible QA history record and its persisted citation snapshots. */
+    @Transactional
+    public void delete(Long recordId) {
+        if (recordId == null || recordId <= 0) {
+            throw new BusinessException("QA record id is invalid");
+        }
+        CurrentUserService.CurrentUser currentUser = currentUserService.getRequiredCurrentUser();
+        boolean systemAdmin = currentUser.systemRole() == SystemRole.ADMIN;
+        QaRecordEntity record = qaRecordMapper.selectVisibleRecord(recordId, currentUser.userId(), systemAdmin);
+        if (record == null) {
+            throw new BusinessException("QA record does not exist or is not visible");
+        }
+        qaRecordCitationMapper.deleteByRecordId(recordId);
+        qaRecordMapper.deleteById(recordId);
     }
 
     /** 规范分页大小，避免一次请求拉取过多历史记录。 */

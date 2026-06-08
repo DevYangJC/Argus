@@ -7,10 +7,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
 /**
- * 认证相关配置属性，前缀 {@code rag.auth}。
+ * 认证相关配置属性，前缀 {@code argus.rag.auth}。
  */
 @Validated
-@ConfigurationProperties(prefix = "rag.auth")
+@ConfigurationProperties(prefix = "argus.rag.auth")
 @Data
 public class AuthProperties {
 
@@ -32,7 +32,7 @@ public class AuthProperties {
 
     /** Refresh token Cookie 名称 */
     @NotBlank
-    private String refreshCookieName = "ARGUS_DD_RAG_REFRESH_TOKEN";
+    private String refreshCookieName = "ARGUS_RAG_REFRESH_TOKEN";
 
     /** Refresh token Cookie 是否仅 HTTPS 发送（生产环境应设为 true） */
     private boolean refreshCookieSecure = true;

@@ -1,4 +1,4 @@
-<div align="center">
+﻿<div align="center">
 
 <strong>简体中文</strong> | <a href="README_EN.md">English</a>
 
@@ -310,7 +310,7 @@ docker restart elasticsearch
 
 ```yaml
 # 数据库
-spring.datasource.url: jdbc:postgresql://localhost:5432/dd_rag
+spring.datasource.url: jdbc:postgresql://localhost:5432/argus_rag
 spring.datasource.username: your_username
 spring.datasource.password: your_password
 

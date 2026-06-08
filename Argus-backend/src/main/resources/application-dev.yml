@@ -9,7 +9,7 @@ spring:
   application:
     name: argus-service
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:dd_rag}
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:argus_rag}
     username: ${DB_USERNAME:your-db-username}
     password: ${DB_PASSWORD:your-db-password}
     driver-class-name: org.postgresql.Driver
@@ -70,28 +70,29 @@ storage:
     secret-key: ${MINIO_SECRET_KEY:your-minio-secret-key}
     bucket: ${MINIO_BUCKET:argus-rag-documents}
 
-rag:
-  auth:
-    jwt-secret: ${DD_RAG_JWT_SECRET:change-me-to-a-32byte-secret-key}
-    issuer: argus-rag
-    access-token-expire-minutes: 30
-    refresh-token-expire-days: 14
-    # 仅开发环境兜底，生产环境仍应显式配置安全密钥。
-    #    jwt-secret: ${DD_RAG_JWT_SECRET:argus_rag-dev-jwt-secret-2026-04-20-32bytes}
-    refresh-cookie-name: ARGUS_DD_RAG_REFRESH_TOKEN
-    refresh-cookie-secure: false
-  dev-admin:
-    username: ${DD_RAG_DEV_ADMIN_USERNAME:your-admin-username}
-    email: ${DD_RAG_DEV_ADMIN_EMAIL:your-admin-email@example.com}
-    display-name: ${DD_RAG_DEV_ADMIN_DISPLAY_NAME:your-display-name}
-    password: ${DD_RAG_DEV_ADMIN_PASSWORD:your-admin-password}
-    user-code: ${DD_RAG_DEV_ADMIN_USER_CODE:your-admin-code}
+argus:
+  rag:
+    auth:
+      jwt-secret: ${ARGUS_RAG_JWT_SECRET:change-me-to-a-32byte-secret-key}
+      issuer: argus-rag
+      access-token-expire-minutes: 30
+      refresh-token-expire-days: 14
+      # 仅开发环境兜底，生产环境仍应显式配置安全密钥。
+      #    jwt-secret: ${ARGUS_RAG_JWT_SECRET:argus_rag-dev-jwt-secret-2026-04-20-32bytes}
+      refresh-cookie-name: ARGUS_RAG_REFRESH_TOKEN
+      refresh-cookie-secure: false
+    dev-admin:
+      username: ${ARGUS_RAG_DEV_ADMIN_USERNAME:your-admin-username}
+      email: ${ARGUS_RAG_DEV_ADMIN_EMAIL:your-admin-email@example.com}
+      display-name: ${ARGUS_RAG_DEV_ADMIN_DISPLAY_NAME:your-display-name}
+      password: ${ARGUS_RAG_DEV_ADMIN_PASSWORD:your-admin-password}
+      user-code: ${ARGUS_RAG_DEV_ADMIN_USER_CODE:your-admin-code}
 
 elasticsearch:
   host: ${ES_HOST:localhost}
   port: ${ES_PORT:9200}
   scheme: ${ES_SCHEME:http}
-  index-name: dd_rag_document_chunks
+  index-name: argus_rag_document_chunks
 
 ingestion:
   chunking:
