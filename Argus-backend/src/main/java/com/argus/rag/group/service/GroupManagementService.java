@@ -240,7 +240,7 @@ public class GroupManagementService {
 
     private String normalizeDescription(String description) {
         if (!StringUtils.hasText(description)) {
-            return null;
+            return "";
         }
         String trimmedDescription = description.trim();
         if (trimmedDescription.length() > MAX_GROUP_DESCRIPTION_LENGTH) {
