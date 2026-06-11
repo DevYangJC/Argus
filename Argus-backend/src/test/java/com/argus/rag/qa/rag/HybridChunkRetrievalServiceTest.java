@@ -1,5 +1,6 @@
 package com.argus.rag.qa.rag;
 
+import com.argus.rag.document.mapper.DocumentMapper;
 import com.argus.rag.engine.elasticsearch.ElasticsearchChunkIndexService;
 import com.argus.rag.engine.pgvector.PgVectorRetrievalAdapter;
 import com.argus.rag.ingestion.mapper.DocumentChunkMapper;
@@ -39,6 +40,9 @@ class HybridChunkRetrievalServiceTest {
     @Mock
     private QueryPlanningService queryPlanningService;
 
+    @Mock
+    private DocumentMapper documentMapper;
+
     @Test
     @DisplayName("按每个文档总结时应优先覆盖不同文档")
     void shouldPreferDifferentDocumentsWhenQuestionAsksEachDocumentSummary() {
@@ -48,6 +52,7 @@ class HybridChunkRetrievalServiceTest {
                 elasticsearchChunkIndexService,
                 documentChunkMapper,
                 queryPlanningService,
+                documentMapper,
                 0
         );
 
@@ -117,5 +122,60 @@ class HybridChunkRetrievalServiceTest {
         entity.setChunkIndex(chunkIndex);
         entity.setChunkText(text);
         return entity;
+    }
+
+    @Test
+    @DisplayName("GLOBAL策略时应当遍历全部READY状态文档的首个切片")
+    void shouldTraverseAllReadyDocumentsWhenStrategyIsGlobal() {
+        String question = "知识库里有些什么文档，总结大纲";
+        HybridChunkRetrievalService service = new HybridChunkRetrievalService(
+                vectorRetrievalAdapter,
+                elasticsearchChunkIndexService,
+                documentChunkMapper,
+                queryPlanningService,
+                documentMapper,
+                0
+        );
+
+        when(queryPlanningService.plan(question))
+                .thenReturn(new QueryPlanResult(QueryPlanStrategy.GLOBAL, List.of(question)));
+
+        com.argus.rag.document.model.entity.DocumentEntity doc1 = new com.argus.rag.document.model.entity.DocumentEntity();
+        doc1.setId(10L);
+        doc1.setGroupId(1L);
+        doc1.setFileName("doc1.txt");
+        doc1.setStatus("READY");
+        doc1.setDeleted(false);
+
+        com.argus.rag.document.model.entity.DocumentEntity doc2 = new com.argus.rag.document.model.entity.DocumentEntity();
+        doc2.setId(20L);
+        doc2.setGroupId(1L);
+        doc2.setFileName("doc2.txt");
+        doc2.setStatus("READY");
+        doc2.setDeleted(false);
+
+        when(documentMapper.selectList(org.mockito.ArgumentMatchers.any(com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper.class)))
+                .thenReturn(List.of(doc1, doc2));
+
+        when(documentChunkMapper.selectReadyActiveChunksByDocumentId(1L, 10L))
+                .thenReturn(List.of(
+                        chunk(101L, 10L, 0, "doc1 chunk0 text"),
+                        chunk(102L, 10L, 1, "doc1 chunk1 text")
+                ));
+
+        when(documentChunkMapper.selectReadyActiveChunksByDocumentId(1L, 20L))
+                .thenReturn(List.of(
+                        chunk(201L, 20L, 0, "doc2 chunk0 text")
+                ));
+
+        RetrievedEvidenceBundle bundle = service.retrieve(1L, question, 5);
+
+        assertThat(bundle.documents()).hasSize(2);
+        assertThat(bundle.documents().get(0).getText()).contains("doc1 chunk0 text");
+        assertThat(bundle.documents().get(1).getText()).contains("doc2 chunk0 text");
+        assertThat(bundle.documents().get(0).getMetadata().get("documentId")).isEqualTo(10L);
+        assertThat(bundle.documents().get(0).getMetadata().get("chunkIndex")).isEqualTo(0);
+        assertThat(bundle.documents().get(0).getMetadata().get("retrievalSource")).isEqualTo("GLOBAL");
+        assertThat(bundle.evidenceLevel()).isEqualTo(com.argus.rag.qa.model.EvidenceLevel.SUFFICIENT);
     }
 }

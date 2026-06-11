@@ -16,5 +16,8 @@ public enum QueryPlanStrategy {
     REWRITE,
 
     /** 分解检索：将复杂问题拆分为多个子问题，分别检索后合并结果 */
-    DECOMPOSE
+    DECOMPOSE,
+
+    /** 全局遍历：原问题针对知识库中所有文档进行统计、列表或全局总结 */
+    GLOBAL
 }

@@ -2,6 +2,7 @@ package com.argus.rag.qa.service;
 
 import com.argus.rag.common.exception.BusinessException;
 import com.argus.rag.qa.model.QueryPlanResult;
+import com.argus.rag.qa.model.QueryPlanStrategy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
@@ -85,6 +86,9 @@ public class QueryPlanningService {
         if (rawResult == null || rawResult.strategy() == null) {
             return QueryPlanResult.fallback(originalQuestion);
         }
+        if (rawResult.strategy() == QueryPlanStrategy.GLOBAL) {
+            return new QueryPlanResult(QueryPlanStrategy.GLOBAL, List.of(originalQuestion));
+        }
         Set<String> normalizedQueries = normalizeQueries(rawResult.queries());
         if (normalizedQueries.isEmpty()) {
             return QueryPlanResult.fallback(originalQuestion);
@@ -93,6 +97,7 @@ public class QueryPlanningService {
             case DIRECT -> List.of(originalQuestion);
             case REWRITE -> buildRewriteQueries(originalQuestion, normalizedQueries);
             case DECOMPOSE -> limitQueries(normalizedQueries);
+            case GLOBAL -> List.of(originalQuestion);
         };
         if (finalQueries.isEmpty()) {
             return QueryPlanResult.fallback(originalQuestion);

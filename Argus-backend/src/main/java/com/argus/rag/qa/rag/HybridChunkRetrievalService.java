@@ -3,6 +3,10 @@ package com.argus.rag.qa.rag;
 import com.argus.rag.common.exception.BusinessException;
 import com.argus.rag.ingestion.mapper.DocumentChunkMapper;
 import com.argus.rag.ingestion.model.entity.DocumentChunkEntity;
+import com.argus.rag.document.mapper.DocumentMapper;
+import com.argus.rag.document.model.entity.DocumentEntity;
+import com.argus.rag.qa.model.QueryPlanStrategy;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.argus.rag.qa.model.EvidenceLevel;
 import com.argus.rag.qa.model.QueryPlanResult;
 import com.argus.rag.qa.service.QueryPlanningService;
@@ -47,6 +51,8 @@ public class HybridChunkRetrievalService {
      * k=0 使排名靠前的切片获得更大权重，配合归一化产出有意义的 0~1 评分
      */
     private static final int RRF_K = 0;
+    /** 全局遍历时最大拉取的文档数量，防范上下文超长 */
+    private static final int MAX_GLOBAL_DOCUMENTS = 50;
 
     /** 向量检索适配器 */
     private final PgVectorRetrievalAdapter vectorRetrievalAdapter;
@@ -56,6 +62,8 @@ public class HybridChunkRetrievalService {
     private final DocumentChunkMapper documentChunkMapper;
     /** 查询规划服务 */
     private final QueryPlanningService queryPlanningService;
+    /** 文档元数据数据访问层 */
+    private final DocumentMapper documentMapper;
     /** 邻居窗口大小 */
     private final int neighborWindow;
 
@@ -67,12 +75,14 @@ public class HybridChunkRetrievalService {
             PgVectorRetrievalAdapter vectorRetrievalAdapter,
             ElasticsearchChunkIndexService elasticsearchChunkIndexService,
             DocumentChunkMapper documentChunkMapper,
-            QueryPlanningService queryPlanningService) {
+            QueryPlanningService queryPlanningService,
+            DocumentMapper documentMapper) {
         this(
                 vectorRetrievalAdapter,
                 elasticsearchChunkIndexService,
                 documentChunkMapper,
                 queryPlanningService,
+                documentMapper,
                 DEFAULT_NEIGHBOR_WINDOW);
     }
 
@@ -84,11 +94,13 @@ public class HybridChunkRetrievalService {
             ElasticsearchChunkIndexService elasticsearchChunkIndexService,
             DocumentChunkMapper documentChunkMapper,
             QueryPlanningService queryPlanningService,
+            DocumentMapper documentMapper,
             int neighborWindow) {
         this.vectorRetrievalAdapter = vectorRetrievalAdapter;
         this.elasticsearchChunkIndexService = elasticsearchChunkIndexService;
         this.documentChunkMapper = documentChunkMapper;
         this.queryPlanningService = queryPlanningService;
+        this.documentMapper = documentMapper;
         this.neighborWindow = Math.max(0, neighborWindow);
     }
 
@@ -114,6 +126,11 @@ public class HybridChunkRetrievalService {
         QueryPlanResult queryPlan = queryPlanningService.plan(normalizedQuestion);
         log.info("查询规划完成: groupId={}, strategy={}, queries={}", validGroupId, queryPlan.strategy(),
                 queryPlan.queries());
+
+        if (queryPlan.strategy() == QueryPlanStrategy.GLOBAL) {
+            log.info("执行全局遍历检索: groupId={}", validGroupId);
+            return retrieveGlobal(validGroupId, normalizedQuestion);
+        }
 
         Map<Long, RetrievalCandidate> candidates = new LinkedHashMap<>();
 
@@ -179,6 +196,77 @@ public class HybridChunkRetrievalService {
     }
 
     /**
+     * 执行全局遍历检索，提取群组内所有 READY 状态文档的首个切片。
+     */
+    private RetrievedEvidenceBundle retrieveGlobal(Long groupId, String question) {
+        List<DocumentEntity> docs = documentMapper.selectList(
+                new LambdaQueryWrapper<DocumentEntity>()
+                        .eq(DocumentEntity::getGroupId, groupId)
+                        .eq(DocumentEntity::getStatus, "READY")
+                        .eq(DocumentEntity::getDeleted, false)
+                        .orderByAsc(DocumentEntity::getId)
+                        .last("LIMIT " + MAX_GLOBAL_DOCUMENTS)
+        );
+
+        if (docs.isEmpty()) {
+            log.info("全局遍历检索: 知识库中无可用文档");
+            return RetrievedEvidenceBundle.empty();
+        }
+
+        List<Document> documents = new ArrayList<>();
+        int evidenceIndex = 1;
+
+        for (DocumentEntity doc : docs) {
+            List<DocumentChunkEntity> activeChunks = documentChunkMapper.selectReadyActiveChunksByDocumentId(groupId, doc.getId());
+            if (activeChunks.isEmpty()) {
+                continue;
+            }
+            
+            DocumentChunkEntity primaryChunk = activeChunks.stream()
+                    .filter(c -> c.getChunkIndex() != null && c.getChunkIndex() == 0)
+                    .findFirst()
+                    .orElse(activeChunks.get(0));
+
+            if (primaryChunk == null || !StringUtils.hasText(primaryChunk.getChunkText())) {
+                continue;
+            }
+
+            Map<String, Object> metadata = new LinkedHashMap<>();
+            String evidenceId = "E" + evidenceIndex;
+            metadata.put("evidenceId", evidenceId);
+            metadata.put("groupId", groupId);
+            metadata.put("documentId", doc.getId());
+            metadata.put("chunkId", primaryChunk.getId());
+            metadata.put("chunkIndex", primaryChunk.getChunkIndex());
+            metadata.put("fileName", doc.getFileName());
+            metadata.put("score", 1.0D);
+            metadata.put("retrievalSource", "GLOBAL");
+            metadata.put("coverageMode", "GLOBAL_TRAVERSAL");
+
+            String evidenceText = "文件名：" + doc.getFileName() + "\n" + primaryChunk.getChunkText().trim();
+
+            documents.add(Document.builder()
+                    .id(evidenceId)
+                    .text(evidenceText)
+                    .metadata(metadata)
+                    .build());
+            
+            evidenceIndex++;
+        }
+
+        if (documents.isEmpty()) {
+            return RetrievedEvidenceBundle.empty();
+        }
+
+        EvidenceLevel evidenceLevel = EvidenceLevel.SUFFICIENT;
+        return new RetrievedEvidenceBundle(
+                documents, 
+                evidenceLevel, 
+                "当前为全局遍历模式，已列出所有可用文档的概览。请根据这些文档分别总结回答，仍然不得超出提供的信息进行臆测。"
+        );
+    }
+
+    /**
      * 选择最终进入上下文的候选切片。
      * <p>
      * 普通问答按相关性取前 topK；当用户要求“每个文档/所有文档”时，先给不同文档各保留一个最高分切片，
@@ -234,33 +322,25 @@ public class HybridChunkRetrievalService {
     }
 
     /** 合并向量检索结果到候选集合，累加 RRF 评分 */
-    private void mergeVectorHits(
-            Map<Long, RetrievalCandidate> candidates,
-            Long groupId,
-            String query) {
-        List<PgVectorRetrievalAdapter.VectorHit> vectorHits = vectorRetrievalAdapter.search(groupId, query,
-                CHANNEL_TOP_K);
+    private void mergeVectorHits(Map<Long, RetrievalCandidate> candidates, Long groupId, String query) {
+
+        List<PgVectorRetrievalAdapter.VectorHit> vectorHits = vectorRetrievalAdapter.search(groupId, query, CHANNEL_TOP_K);
+
         for (int index = 0; index < vectorHits.size(); index++) {
             PgVectorRetrievalAdapter.VectorHit hit = vectorHits.get(index);
-            RetrievalCandidate candidate = candidates.computeIfAbsent(
-                    hit.chunkId(),
-                    ignored -> RetrievalCandidate.fromVectorHit(hit));
+            RetrievalCandidate candidate = candidates.computeIfAbsent(hit.chunkId(), ignored -> RetrievalCandidate.fromVectorHit(hit));
             candidate.mergeVectorHit(hit, index + 1);
         }
     }
 
     /** 合并关键词检索结果到候选集合，累加 RRF 评分 */
-    private void mergeKeywordHits(
-            Map<Long, RetrievalCandidate> candidates,
-            Long groupId,
-            String query) {
-        List<ElasticsearchChunkIndexService.KeywordHit> keywordHits = elasticsearchChunkIndexService.search(groupId,
-                query, CHANNEL_TOP_K);
+    private void mergeKeywordHits(Map<Long, RetrievalCandidate> candidates, Long groupId, String query) {
+
+        List<ElasticsearchChunkIndexService.KeywordHit> keywordHits = elasticsearchChunkIndexService.search(groupId, query, CHANNEL_TOP_K);
         for (int index = 0; index < keywordHits.size(); index++) {
+
             ElasticsearchChunkIndexService.KeywordHit hit = keywordHits.get(index);
-            RetrievalCandidate candidate = candidates.computeIfAbsent(
-                    hit.chunkId(),
-                    ignored -> RetrievalCandidate.fromKeywordHit(hit));
+            RetrievalCandidate candidate = candidates.computeIfAbsent(hit.chunkId(), ignored -> RetrievalCandidate.fromKeywordHit(hit));
             candidate.mergeKeywordHit(hit, index + 1);
         }
     }
