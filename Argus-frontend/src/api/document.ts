@@ -265,8 +265,11 @@ export async function uploadDocument(payload: UploadDocumentPayload): Promise<nu
  */
 export async function initDocumentUpload(
   payload: InitDocumentUploadPayload,
+  signal?: AbortSignal,
 ): Promise<UploadInitResult> {
-  const { data } = await http.post<ApiResponse<UploadInitResult>>('/documents/upload/init', payload)
+  const { data } = await http.post<ApiResponse<UploadInitResult>>('/documents/upload/init', payload, {
+    signal,
+  })
 
   if (!data.success || !data.data) {
     throw new Error(data.message ?? '初始化上传失败')
@@ -290,6 +293,7 @@ export async function initDocumentUpload(
 export async function uploadDocumentChunk(
   payload: UploadChunkPayload,
   onProgress?: (loadedBytes: number) => void,
+  signal?: AbortSignal,
 ): Promise<UploadStatusResult> {
   const formData = new FormData()
   formData.append('uploadId', payload.uploadId)
@@ -301,6 +305,7 @@ export async function uploadDocumentChunk(
     onUploadProgress: (event: AxiosProgressEvent) => {
       onProgress?.(event.loaded)
     },
+    signal,
   })
 
   if (!data.success || !data.data) {
@@ -340,8 +345,13 @@ export async function fetchUploadStatus(uploadId: string): Promise<UploadStatusR
  * @param uploadId 上传会话 ID
  * @returns 新创建的文档 ID
  */
-export async function completeDocumentUpload(uploadId: string): Promise<number> {
-  const { data } = await http.post<ApiResponse<number>>(`/documents/upload/${uploadId}/complete`)
+export async function completeDocumentUpload(
+  uploadId: string,
+  signal?: AbortSignal,
+): Promise<number> {
+  const { data } = await http.post<ApiResponse<number>>(`/documents/upload/${uploadId}/complete`, null, {
+    signal,
+  })
 
   if (!data.success || typeof data.data !== 'number') {
     throw new Error(data.message ?? '完成上传失败')

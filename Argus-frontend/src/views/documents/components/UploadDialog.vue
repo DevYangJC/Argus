@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, nextTick, watch } from 'vue'
+import { ref, nextTick, watch, computed, reactive } from 'vue'
 import { uploadDocument } from '@/api/document'
 import { extractApiError } from '@/api/http'
+import { useChunkedUpload } from '../composables/useChunkedUpload'
 
 const props = defineProps<{
   visible: boolean
@@ -23,6 +24,17 @@ const fileInputRef = ref<HTMLInputElement | null>(null)
 const dragging = ref(false)
 
 const allowedExts = ['.txt', '.md', '.pdf', '.docx']
+const MAX_FILE_SIZE = 256 * 1024 * 1024
+const CHUNKED_THRESHOLD = 10 * 1024 * 1024
+
+const chunked = reactive(useChunkedUpload())
+
+const isUploading = computed(() => loading.value || chunked.isUploading)
+const displayProgress = computed(() =>
+  chunked.isUploading ? chunked.progress : progress.value,
+)
+const displayError = computed(() => errorMsg.value || chunked.error)
+const isChunkedActive = computed(() => chunked.isUploading)
 
 function resetState() {
   file.value = null
@@ -31,6 +43,7 @@ function resetState() {
   errorMsg.value = ''
   success.value = false
   dragging.value = false
+  chunked.reset()
 }
 
 watch(
@@ -48,8 +61,8 @@ function validateFile(f: File): string | null {
   if (!allowedExts.includes(ext)) {
     return `不支持的文件类型（支持: ${allowedExts.join(', ')}）`
   }
-  if (f.size > 10 * 1024 * 1024) {
-    return '文件大小不能超过 10MB（大文件请使用分片上传）'
+  if (f.size > MAX_FILE_SIZE) {
+    return `文件大小不能超过 ${formatSize(MAX_FILE_SIZE)}`
   }
   return null
 }
@@ -102,15 +115,19 @@ async function handleUpload() {
   errorMsg.value = ''
   progress.value = 0
   try {
-    await uploadDocument({
-      groupId: props.groupId,
-      file: file.value,
-      onProgress: (loaded, total) => {
-        if (total) {
-          progress.value = Math.round((loaded / total) * 100)
-        }
-      },
-    })
+    if (file.value.size > CHUNKED_THRESHOLD) {
+      await chunked.uploadFile(file.value, props.groupId)
+    } else {
+      await uploadDocument({
+        groupId: props.groupId,
+        file: file.value,
+        onProgress: (loaded, total) => {
+          if (total) {
+            progress.value = Math.round((loaded / total) * 100)
+          }
+        },
+      })
+    }
     success.value = true
     file.value = null
     setTimeout(() => {
@@ -118,7 +135,9 @@ async function handleUpload() {
       emit('update:visible', false)
     }, 800)
   } catch (err) {
-    errorMsg.value = extractApiError(err, '上传文件失败')
+    if (!chunked.error) {
+      errorMsg.value = extractApiError(err, '上传文件失败')
+    }
   } finally {
     loading.value = false
   }
@@ -130,7 +149,7 @@ async function retryUpload() {
 }
 
 function close() {
-  if (loading.value) return
+  if (isUploading.value) return
   emit('update:visible', false)
 }
 
@@ -145,8 +164,8 @@ function formatSize(bytes: number): string {
   <el-dialog
     :model-value="visible"
     :close-on-click-modal="false"
-    :close-on-press-escape="!loading"
-    :show-close="!loading"
+    :close-on-press-escape="!isUploading"
+    :show-close="!isUploading"
     width="460px"
     top="13vh"
     @update:model-value="(val: boolean) => { if (!val) close() }"
@@ -185,7 +204,7 @@ function formatSize(bytes: number): string {
             <strong>点击选择文件</strong>
             <span>或将文件拖拽到此处</span>
           </p>
-          <p class="upload-dialog__zone-hint">支持 TXT · MD · PDF · DOCX，最大 10 MB</p>
+          <p class="upload-dialog__zone-hint">支持 TXT · MD · PDF · DOCX，最大 256 MB</p>
         </template>
         <template v-else>
           <div class="upload-dialog__file-icon">
@@ -215,21 +234,31 @@ function formatSize(bytes: number): string {
       />
 
       <!-- Progress -->
-      <div v-if="loading || success" class="upload-dialog__progress">
-        <div class="upload-dialog__progress-track">
-          <div
-            class="upload-dialog__progress-fill"
-            :class="{ 'is-done': success }"
-            :style="{ width: progress + '%' }"
-          />
+      <div v-if="isUploading || success" class="upload-dialog__progress">
+        <div v-if="isChunkedActive && chunked.stage" class="upload-dialog__stage">
+          <span v-if="chunked.stage === 'hashing'">{{ chunked.hashingProgress || '正在计算文件指纹...' }}</span>
+          <span v-else-if="chunked.stage === 'init'">正在初始化上传...</span>
+          <span v-else-if="chunked.stage === 'uploading'">
+            分片上传中 {{ chunked.chunkProgress.uploaded }}/{{ chunked.chunkProgress.total }}
+          </span>
+          <span v-else-if="chunked.stage === 'completing'">正在合并文件...</span>
         </div>
-        <span class="upload-dialog__progress-text">
-          {{ success ? '上传成功' : `${progress}%` }}
-        </span>
+        <div class="upload-dialog__progress-row">
+          <div class="upload-dialog__progress-track">
+            <div
+              class="upload-dialog__progress-fill"
+              :class="{ 'is-done': success }"
+              :style="{ width: displayProgress + '%' }"
+            />
+          </div>
+          <span class="upload-dialog__progress-text">
+            {{ success ? '上传成功' : `${displayProgress}%` }}
+          </span>
+        </div>
       </div>
 
       <!-- Error with retry -->
-      <div v-if="errorMsg" class="upload-dialog__error">
+      <div v-if="displayError" class="upload-dialog__error">
         <div class="upload-dialog__error-icon">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="10" />
@@ -237,9 +266,9 @@ function formatSize(bytes: number): string {
             <line x1="12" y1="16" x2="12.01" y2="16" />
           </svg>
         </div>
-        <span class="upload-dialog__error-text">{{ errorMsg }}</span>
+        <span class="upload-dialog__error-text">{{ displayError }}</span>
         <button
-          v-if="file && !loading"
+          v-if="file && !isUploading"
           class="upload-dialog__error-retry"
           type="button"
           @click="retryUpload"
@@ -253,15 +282,23 @@ function formatSize(bytes: number): string {
         <button
           v-if="!success"
           class="upload-dialog__btn upload-dialog__btn--primary"
-          :disabled="!file || loading"
+          :disabled="!file || isUploading"
           @click="handleUpload"
         >
-          <span v-if="!loading">开始上传</span>
-          <span v-else>上传中…</span>
+          <span v-if="!isUploading">开始上传</span>
+          <span v-else>上传中...</span>
         </button>
         <button
+          v-if="isChunkedActive && !success"
           class="upload-dialog__btn upload-dialog__btn--ghost"
-          :disabled="loading"
+          @click="chunked.cancel()"
+        >
+          取消上传
+        </button>
+        <button
+          v-if="!isChunkedActive || success"
+          class="upload-dialog__btn upload-dialog__btn--ghost"
+          :disabled="isUploading"
           @click="close"
         >
           {{ success ? '关闭' : '取消' }}
@@ -424,6 +461,20 @@ function formatSize(bytes: number): string {
 
 /* Progress */
 .upload-dialog__progress {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.upload-dialog__stage {
+  font-size: 0.8rem;
+  color: var(--brand-primary);
+  font-weight: 600;
+  text-align: center;
+  padding: 4px 0;
+}
+
+.upload-dialog__progress-row {
   display: flex;
   align-items: center;
   gap: 12px;

@@ -19,12 +19,12 @@ import com.argus.rag.group.service.GroupMembershipService;
 import com.argus.rag.engine.storage.ObjectStorageService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -199,12 +199,22 @@ public class DocumentUploadService {
         log.debug("分片上传-接收分片: uploadId={}, chunkIndex={}/{}, chunkSize={}",
                 uploadRequest.uploadId(), uploadRequest.chunkIndex(), session.getChunkCount(), chunk.getSize());
         LocalDateTime now = LocalDateTime.now();
+        byte[] chunkData;
+        try {
+            chunkData = chunk.getBytes();
+        } catch (IOException exception) {
+            throw new BusinessException("读取分片数据失败");
+        }
+        String computedHash = computeSha256(chunkData);
+        if (!computedHash.equals(chunkHash)) {
+            throw new BusinessException("分片校验失败，数据可能已损坏");
+        }
         try {
             objectStorageService.putObject(
                     session.getStorageBucket(),
                     objectKey,
-                    chunk.getInputStream(),
-                    chunk.getSize(),
+                    new ByteArrayInputStream(chunkData),
+                    chunkData.length,
                     OCTET_STREAM
             );
         } catch (BusinessException exception) {
@@ -216,14 +226,19 @@ public class DocumentUploadService {
         DocumentUploadChunkEntity uploadChunk = new DocumentUploadChunkEntity();
         uploadChunk.setUploadId(session.getUploadId());
         uploadChunk.setChunkIndex(uploadRequest.chunkIndex());
-        uploadChunk.setChunkSize(chunk.getSize());
+        uploadChunk.setChunkSize((long) chunkData.length);
         uploadChunk.setChunkHash(chunkHash);
         uploadChunk.setStorageBucket(session.getStorageBucket());
         uploadChunk.setStorageObjectKey(objectKey);
         uploadChunk.setUploadedAt(now);
         uploadChunk.setCreatedAt(now);
         uploadChunk.setUpdatedAt(now);
-        documentUploadChunkMapper.upsert(uploadChunk);
+        try {
+            documentUploadChunkMapper.upsert(uploadChunk);
+        } catch (RuntimeException exception) {
+            compensateUploadedChunkObject(session.getStorageBucket(), objectKey);
+            throw exception;
+        }
         documentUploadSessionMapper.update(null, new LambdaUpdateWrapper<DocumentUploadSessionEntity>()
                 .eq(DocumentUploadSessionEntity::getUploadId, session.getUploadId())
                 .set(DocumentUploadSessionEntity::getStatus, UPLOAD_STATUS_UPLOADING)
@@ -269,12 +284,16 @@ public class DocumentUploadService {
                 uploadId, session.getFileName(), session.getFileSize(), chunks.size());
         String objectKey = buildFinalObjectKey(session);
         LocalDateTime now = LocalDateTime.now();
-        documentUploadSessionMapper.update(null, new LambdaUpdateWrapper<DocumentUploadSessionEntity>()
+        int updated = documentUploadSessionMapper.update(null, new LambdaUpdateWrapper<DocumentUploadSessionEntity>()
                 .eq(DocumentUploadSessionEntity::getUploadId, uploadId)
+                .eq(DocumentUploadSessionEntity::getStatus, UPLOAD_STATUS_UPLOADING)
                 .set(DocumentUploadSessionEntity::getStatus, UPLOAD_STATUS_COMPLETING)
                 .set(DocumentUploadSessionEntity::getMergedObjectKey, null)
                 .set(DocumentUploadSessionEntity::getUpdatedAt, now)
         );
+        if (updated == 0) {
+            throw new BusinessException("上传会话状态异常，无法完成上传");
+        }
         try {
             objectStorageService.composeObject(
                     session.getStorageBucket(),
@@ -308,6 +327,9 @@ public class DocumentUploadService {
             try {
                 objectStorageService.deleteObject(session.getStorageBucket(), objectKey);
             } catch (RuntimeException ignored) {
+            }
+            for (DocumentUploadChunkEntity chunk : chunks) {
+                compensateUploadedChunkObject(session.getStorageBucket(), chunk.getStorageObjectKey());
             }
             throw exception;
         }
@@ -510,8 +532,8 @@ public class DocumentUploadService {
         if (session.getExpiresAt() != null && session.getExpiresAt().isBefore(LocalDateTime.now())) {
             throw new BusinessException("上传会话已过期");
         }
-        if (UPLOAD_STATUS_COMPLETED.equals(session.getStatus())) {
-            throw new BusinessException("上传会话已完成");
+        if (UPLOAD_STATUS_COMPLETED.equals(session.getStatus()) || UPLOAD_STATUS_COMPLETING.equals(session.getStatus())) {
+            throw new BusinessException("上传会话已完成或正在合并");
         }
         return session;
     }
@@ -555,7 +577,8 @@ public class DocumentUploadService {
             throw new BusinessException("缺少分片，无法完成上传");
         }
         for (int index = 0; index < session.getChunkCount(); index++) {
-            if (!Integer.valueOf(index).equals(chunks.get(index).getChunkIndex())) {
+            DocumentUploadChunkEntity chunk = chunks.get(index);
+            if (chunk == null || !Integer.valueOf(index).equals(chunk.getChunkIndex())) {
                 throw new BusinessException("缺少分片，无法完成上传");
             }
         }
@@ -740,10 +763,22 @@ public class DocumentUploadService {
 
     private String calculateSha256(MultipartFile file) {
         try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            return HexFormat.of().formatHex(digest.digest(file.getBytes()));
+            return computeSha256(file.getBytes());
         } catch (IOException exception) {
             throw new BusinessException("读取上传文件失败");
+        }
+    }
+
+    /**
+     * 计算字节数组的 SHA-256 哈希值。
+     *
+     * @param data 待哈希的字节数组
+     * @return 64 字符十六进制 SHA-256 哈希字符串
+     */
+    private String computeSha256(byte[] data) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(data));
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 algorithm is unavailable", exception);
         }
@@ -763,13 +798,28 @@ public class DocumentUploadService {
     }
 
     private void compensateUploadedDirectObject(String bucket, String objectKey,
-                                                 RuntimeException originalException) {
+                                                  RuntimeException originalException) {
         try {
             objectStorageService.deleteObject(bucket, objectKey);
         } catch (RuntimeException compensationException) {
             originalException.addSuppressed(compensationException);
             log.warn("补偿清理对象存储失败: bucket={}, objectKey={}, reason={}",
                     bucket, objectKey, compensationException.getMessage());
+        }
+    }
+
+    /**
+     * 补偿清理因 DB 持久化失败而遗留的 MinIO 分片对象。
+     *
+     * @param bucket    MinIO 桶名
+     * @param objectKey 分片对象的 MinIO key
+     */
+    private void compensateUploadedChunkObject(String bucket, String objectKey) {
+        try {
+            objectStorageService.deleteObject(bucket, objectKey);
+            log.debug("补偿清理分片对象: bucket={}, objectKey={}", bucket, objectKey);
+        } catch (RuntimeException ignored) {
+            log.warn("补偿清理分片对象失败: bucket={}, objectKey={}", bucket, objectKey);
         }
     }
 

@@ -77,13 +77,7 @@ public class HybridChunkRetrievalService {
             DocumentChunkMapper documentChunkMapper,
             QueryPlanningService queryPlanningService,
             DocumentMapper documentMapper) {
-        this(
-                vectorRetrievalAdapter,
-                elasticsearchChunkIndexService,
-                documentChunkMapper,
-                queryPlanningService,
-                documentMapper,
-                DEFAULT_NEIGHBOR_WINDOW);
+        this(vectorRetrievalAdapter, elasticsearchChunkIndexService, documentChunkMapper, queryPlanningService, documentMapper, DEFAULT_NEIGHBOR_WINDOW);
     }
 
     /**
