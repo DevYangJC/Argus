@@ -12,6 +12,7 @@ import com.argus.rag.qa.model.QueryPlanResult;
 import com.argus.rag.qa.service.QueryPlanningService;
 import com.argus.rag.engine.elasticsearch.ElasticsearchChunkIndexService;
 import com.argus.rag.engine.pgvector.PgVectorRetrievalAdapter;
+import com.argus.rag.engine.youcom.YoucomSearchService;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
@@ -24,17 +25,19 @@ import java.util.*;
 /**
  * 混合文档切片检索服务。
  * <p>
- * 核心检索引擎，融合向量语义检索和关键词检索两个通道，
- * 通过 RRF（Reciprocal Rank Fusion）算法融合排序，
+ * 核心检索引擎，融合向量语义检索、关键词检索和 You.com 网络搜索三个通道，
+ * 向量+关键词通过 RRF（Reciprocal Rank Fusion）算法融合排序，
+ * You.com 结果追加到证据列表作为第三条通道，
  * 并支持邻居窗口扩展和证据充分度评估。
  * </p>
  * <h3>检索流程</h3>
  * <ol>
  * <li>查询规划：由 {@link QueryPlanningService} 分析问题并生成检索语句</li>
- * <li>双通道检索：向量检索 + 关键词检索</li>
- * <li>RRF 融合排序：合并两通道结果并按 RRF 评分排序</li>
+ * <li>三通道并行检索：向量检索 + 关键词检索 + You.com 网络搜索</li>
+ * <li>RRF 融合排序：合并向量+关键词通道结果并按 RRF 评分排序</li>
  * <li>聚类分组：将连续的切片聚合为类簇</li>
  * <li>邻居窗口扩展：扩展上下文窗口以提供更完整的证据</li>
+ * <li>You.com 结果追加：将 Web 搜索结果追加到证据列表</li>
  * <li>证据充分度评估：根据检索结果评估证据质量</li>
  * </ol>
  */
@@ -58,6 +61,8 @@ public class HybridChunkRetrievalService {
     private final PgVectorRetrievalAdapter vectorRetrievalAdapter;
     /** Elasticsearch 关键词检索服务 */
     private final ElasticsearchChunkIndexService elasticsearchChunkIndexService;
+    /** You.com 网络搜索服务 */
+    private final YoucomSearchService youcomSearchService;
     /** 文档切片数据访问层 */
     private final DocumentChunkMapper documentChunkMapper;
     /** 查询规划服务 */
@@ -74,10 +79,11 @@ public class HybridChunkRetrievalService {
     public HybridChunkRetrievalService(
             PgVectorRetrievalAdapter vectorRetrievalAdapter,
             ElasticsearchChunkIndexService elasticsearchChunkIndexService,
+            YoucomSearchService youcomSearchService,
             DocumentChunkMapper documentChunkMapper,
             QueryPlanningService queryPlanningService,
             DocumentMapper documentMapper) {
-        this(vectorRetrievalAdapter, elasticsearchChunkIndexService, documentChunkMapper, queryPlanningService, documentMapper, DEFAULT_NEIGHBOR_WINDOW);
+        this(vectorRetrievalAdapter, elasticsearchChunkIndexService, youcomSearchService, documentChunkMapper, queryPlanningService, documentMapper, DEFAULT_NEIGHBOR_WINDOW);
     }
 
     /**
@@ -86,12 +92,14 @@ public class HybridChunkRetrievalService {
     public HybridChunkRetrievalService(
             PgVectorRetrievalAdapter vectorRetrievalAdapter,
             ElasticsearchChunkIndexService elasticsearchChunkIndexService,
+            YoucomSearchService youcomSearchService,
             DocumentChunkMapper documentChunkMapper,
             QueryPlanningService queryPlanningService,
             DocumentMapper documentMapper,
             int neighborWindow) {
         this.vectorRetrievalAdapter = vectorRetrievalAdapter;
         this.elasticsearchChunkIndexService = elasticsearchChunkIndexService;
+        this.youcomSearchService = youcomSearchService;
         this.documentChunkMapper = documentChunkMapper;
         this.queryPlanningService = queryPlanningService;
         this.documentMapper = documentMapper;
@@ -101,7 +109,7 @@ public class HybridChunkRetrievalService {
     /**
      * 执行混合检索，返回包含证据文档和证据等级的完整检索结果。
      * <p>
-     * 流程：查询规划 → 双通道检索 → RRF 融合排序 → 聚类分组 → 窗口扩展 → 证据评估。
+     * 流程：查询规划 → 三通道并行检索 → RRF 融合排序 → 聚类分组 → 窗口扩展 → You.com 结果追加 → 证据评估。
      * </p>
      *
      * @param groupId  群组 ID，限定检索范围
@@ -182,6 +190,26 @@ public class HybridChunkRetrievalService {
             log.info("混合检索证据组装为空: groupId={}, elapsedMs={}", validGroupId, elapsedMs);
             return RetrievedEvidenceBundle.empty();
         }
+
+        // You.com 网络搜索作为第三条通道，并行执行后直接追加到 documents 列表
+        for (String plannedQuery : queryPlan.queries()) {
+            List<Document> webResults = youcomSearchService.search(plannedQuery);
+            for (Document webDoc : webResults) {
+                // 更新 evidenceId 以保持连续编号
+                String newId = "E" + evidenceIndex;
+                Map<String, Object> metadata = new LinkedHashMap<>(webDoc.getMetadata());
+                metadata.put("evidenceId", newId);
+                documents.add(Document.builder()
+                        .id(newId)
+                        .text(webDoc.getText())
+                        .metadata(metadata)
+                        .build());
+                evidenceIndex++;
+            }
+        }
+        log.info("You.com 搜索结果追加完成: groupId={}, webResults={}",
+                validGroupId, evidenceIndex - rankedClusters.size() - 1);
+
         EvidenceLevel evidenceLevel = evaluateEvidenceLevel(documents);
         long elapsedMs = (System.nanoTime() - startNano) / 1_000_000;
         log.info("混合检索完成: groupId={}, evidenceCount={}, evidenceLevel={}, elapsedMs={}",
