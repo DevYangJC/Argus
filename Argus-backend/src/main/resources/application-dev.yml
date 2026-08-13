@@ -102,3 +102,9 @@ ingestion:
   vector:
     # 控制业务侧每次调用 VectorStore.add 的 chunk 数量，降低单次 Ollama embedding 请求压力。
     add-batch-size: 9
+
+youcom:
+  search:
+    enabled: false
+    api-key: ${YOUCOM_API_KEY:}
+    top-k: 10
